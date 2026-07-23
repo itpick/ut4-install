@@ -7,7 +7,7 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
 | Built | 2026-07-22 |
-| Platforms | Linux ✅ · macOS (Apple Silicon) ✅ · Windows 🚧 |
+| Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows 🚧 |
 
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
 size limit), and individual maps are published as downloadable paks on the
@@ -32,7 +32,7 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 | Artifact | Download size | Location |
 |---|---|---|
 | Linux client | 8.6 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
-| macOS client (Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
+| macOS client (Universal — Intel + Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
 | Per-map paks (macOS) | ~2 GB total (40 maps) | [Release `maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) |
@@ -91,7 +91,10 @@ Some Mesa/RADV driver combinations deadlock in the Vulkan RHI without it.
 
 ---
 
-## macOS (Apple Silicon)
+## macOS (Universal — Intel & Apple Silicon)
+
+The macOS client is a **Universal binary** (`arm64 + x86_64`) — the same download runs
+natively on both Apple Silicon and Intel Macs.
 
 ```bash
 oras pull ghcr.io/itpick/ut4-install:mac-5.8
