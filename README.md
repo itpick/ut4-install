@@ -9,9 +9,39 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Built | 2026-07-22 |
 | Platforms | Linux ✅ · macOS (Apple Silicon) ✅ · Windows 🚧 |
 
-> **Builds are not published yet.** This repo currently documents how to install and run;
-> download links land here once the first release is cut. Source lives in
-> [itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `ue5.8-port` branch.
+Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
+size limit), and individual maps are published as downloadable paks on the
+[Releases](https://github.com/itpick/ut4-install/releases) page. Source lives in
+[itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `ue5.8-port`
+branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/UnrealEngine).
+
+---
+
+## Screenshots
+
+| Main menu | Hub |
+|---|---|
+| ![Main menu](docs/mainmenu.png) | ![Hub lobby](docs/hub.png) |
+
+<p align="center"><img src="docs/login.png" alt="Login screen" width="320"></p>
+
+---
+
+## Downloads
+
+| Artifact | Location |
+|---|---|
+| Linux client | `ghcr.io/itpick/ut4-install:linux-5.8` |
+| macOS client (Apple Silicon) | `ghcr.io/itpick/ut4-install:mac-5.8` |
+| Per-map paks (Linux) | Release [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
+
+The client artifacts are pulled with [`oras`](https://oras.land) (a small CLI for OCI
+registries). Each is a single zstd-compressed tarball of the staged build.
+
+```bash
+# one-time: install oras — https://oras.land/docs/installation
+oras pull ghcr.io/itpick/ut4-install:linux-5.8      # or :mac-5.8
+```
 
 ---
 
@@ -23,7 +53,8 @@ mutually unreachable by design — servers advertise their network version and c
 on it.
 
 Maps are also **cooked per platform**. The lighting bake is shared, but Linux, macOS and
-Windows each need their own pak set. A single universal map pak is not possible.
+Windows each need their own pak set. A single universal map pak is not possible — this is
+why the map release is platform-tagged (`-LinuxNoEditor.pak`).
 
 ---
 
@@ -31,6 +62,7 @@ Windows each need their own pak set. A single universal map pak is not possible.
 
 - A 64-bit machine with a GPU supporting **Vulkan** (Linux), **Metal** (macOS) or **D3D12** (Windows)
 - ~16 GB free disk for the client
+- `oras` on your PATH to download the client
 - An account on the master server you intend to play on
 
 ---
@@ -38,8 +70,9 @@ Windows each need their own pak set. A single universal map pak is not possible.
 ## Linux
 
 ```bash
-tar xf UT4-UE58-Linux.tar.gz
-cd UT4-UE58-Linux
+oras pull ghcr.io/itpick/ut4-install:linux-5.8
+tar -I zstd -xf ut4-client-linux.tar.zst
+cd LinuxNoEditor
 ./UnrealTournament.sh
 ```
 
@@ -56,7 +89,9 @@ Some Mesa/RADV driver combinations deadlock in the Vulkan RHI without it.
 ## macOS (Apple Silicon)
 
 ```bash
-xattr -dr com.apple.quarantine UnrealTournament.app   # if downloaded via a browser
+oras pull ghcr.io/itpick/ut4-install:mac-5.8
+tar -I zstd -xf ut4-client-mac.tar.zst
+xattr -dr com.apple.quarantine UnrealTournament.app   # clears the download quarantine
 open UnrealTournament.app
 ```
 
@@ -77,11 +112,36 @@ Without this permission the symptoms are confusing rather than obvious:
 
 A master server reached over the public internet works without it; only LAN addresses are gated.
 
+> **Launch it with `open`, not by running the binary directly.** A direct launch bypasses the
+> app sandbox and its entitlements, which breaks networking and login.
+
 ---
 
 ## Windows
 
 Not yet available. This section lands with the first Windows build.
+
+---
+
+## Downloadable maps
+
+The client ships with the full stock map set baked in, so you do not need to download
+anything to play the standard rotation. Hubs can also advertise **extra** maps the client
+does not have; when you join, the client fetches the map's pak over HTTPS, verifies its MD5,
+mounts it and loads in — no manual install.
+
+The per-map paks are hosted on the [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1)
+release. To advertise one from your own hub, add a redirect (the MD5 is the release asset's
+checksum):
+
+```ini
+[OnlineSubsystemUT]
++RedirectReferences=(PackageName="DM-Chill",PackageURLProtocol="https",PackageURL="https://github.com/itpick/ut4-install/releases/download/maps-linux-v1/DM-Chill-LinuxNoEditor.pak",PackageChecksum="<md5>")
+```
+
+Because paks are per platform, a mixed Linux/macOS lobby needs both a `-LinuxNoEditor.pak`
+and a `-MacNoEditor.pak` redirect for any downloadable map; each client picks the one for
+its platform.
 
 ---
 
