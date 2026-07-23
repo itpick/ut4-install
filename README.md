@@ -35,6 +35,7 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 | macOS client (Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
+| Per-map paks (macOS) | ~2 GB total (40 maps) | [Release `maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) |
 
 The **dedicated server / hub** package is a single Linux server build; whether it runs as a
 lobby **hub** or a single **dedicated match** is just the launch command (see below).
@@ -135,8 +136,9 @@ does not have; when you join, the client fetches the map's pak over HTTPS, verif
 mounts it and loads in — no manual install.
 
 The per-map paks are hosted on the [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1)
-release. To advertise one from your own hub, add a redirect (the MD5 is the release asset's
-checksum):
+and [`maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) releases
+(one per platform). To advertise one from your own hub, add a redirect (the MD5 is the
+release asset's checksum):
 
 ```ini
 [OnlineSubsystemUT]
@@ -230,7 +232,7 @@ Or on the command line for an existing packaged build:
 ## Known issues
 
 - **DM-Underland** crashes on load (`ULandscapeSplineSegment::Serialize`) and is excluded from all builds
-- **Quick Play** is unavailable — it depends on Epic services that no longer exist
+- **Quick Play** — no quickplay hubs are running by default, but they can be launched, so this isn't really a defect, just an unconfigured feature
 - **Remember-me / auto-login** is not implemented; you sign in each launch
 - Player stats and MMR are unavailable (`McpUtils` is an Epic service)
 
