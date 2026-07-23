@@ -7,7 +7,7 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
 | Built | 2026-07-22 |
-| Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows 🚧 |
+| Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows ✅ |
 
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
 size limit), and individual maps are published as downloadable paks on the
@@ -33,6 +33,7 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 |---|---|---|
 | Linux client | 8.6 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | macOS client (Universal — Intel + Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
+| Windows client (Win64) | ~7.7 GB (≈10 GB extracted) | [`ghcr.io/itpick/ut4-install:win64-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
 | Per-map paks (macOS) | ~2 GB total (40 maps) | [Release `maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) |
@@ -125,9 +126,17 @@ A master server reached over the public internet works without it; only LAN addr
 
 ---
 
-## Windows
+## Windows (Win64)
 
-Not yet available. This section lands with the first Windows build.
+```powershell
+oras pull ghcr.io/itpick/ut4-install:win64-5.8
+tar --zstd -xf ut4-client-win64.tar.zst   # bsdtar (Win10/11) supports --zstd; or use 7-Zip
+.\UnrealTournament.exe
+```
+
+Requires a **D3D11/D3D12-capable GPU** (a headless/GPU-less VM will exit with *"a D3D11-compatible
+GPU is required"*). The client is a single legacy pak (`bUseIoStore=False`), same as Linux/macOS,
+so it joins the same UE5.8 hubs and downloads the same map redirects.
 
 ---
 
