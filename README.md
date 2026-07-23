@@ -33,7 +33,11 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 |---|---|---|
 | Linux client | 8.6 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | macOS client (Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
+| Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
+
+The **dedicated server / hub** package is a single Linux server build; whether it runs as a
+lobby **hub** or a single **dedicated match** is just the launch command (see below).
 
 The client artifacts are pulled with [`oras`](https://oras.land) (a small CLI for OCI
 registries). Each is a single zstd-compressed tarball of the staged build.
@@ -176,13 +180,26 @@ open <address>:7777
 
 ## Running your own server or hub
 
-```bash
-# Hub — hosts a lobby and spawns match instances on demand
-./UnrealTournamentServer "UT-Entry?Game=LOBBY" -log -port=7777
+Download the server package (same build serves both roles):
 
-# Single dedicated match
-./UnrealTournamentServer "DM-Outpost23?Game=DM?BotFill=6" -log -port=7777
+```bash
+oras pull ghcr.io/itpick/ut4-install:server-linux-5.8
+tar -I zstd -xf ut4-server-linux.tar.zst
+cd LinuxServer
 ```
+
+```bash
+# Hub — hosts a lobby and spawns match instances on demand (game 7777, query 7787)
+./UnrealTournament/Binaries/Linux/UnrealTournamentServer "UT-Entry?Game=LOBBY" \
+  -log -port=7777
+
+# Single dedicated match — use a different port pair so it can run alongside a hub
+./UnrealTournament/Binaries/Linux/UnrealTournamentServer "DM-Outpost23?Game=DM?BotFill=6" \
+  -log -port=7900 -BeaconPort=7901
+```
+
+A hub owns one query beacon, so run a dedicated match on its own `-port`/`-BeaconPort`
+pair (e.g. `7900`/`7901`) rather than sharing the hub's `7777`/`7787`.
 
 ### Ports to open (UDP)
 
