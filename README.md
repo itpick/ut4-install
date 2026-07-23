@@ -234,7 +234,6 @@ Or on the command line for an existing packaged build:
 
 ## Known issues
 
-- **DM-Underland** crashes on load (`ULandscapeSplineSegment::Serialize`) and is excluded from all builds
 - **Quick Play** — no quickplay hubs are running by default, but they can be launched, so this isn't really a defect, just an unconfigured feature
 - **Remember-me / auto-login** is not implemented; you sign in each launch
 - Player stats and MMR are unavailable (`McpUtils` is an Epic service)
