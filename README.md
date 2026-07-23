@@ -15,6 +15,9 @@ size limit), and individual maps are published as downloadable paks on the
 [itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `ue5.8-port`
 branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/UnrealEngine).
 
+> 🐛 **Found a bug, or want a feature?** Please **[open an issue](https://github.com/itpick/ut4-install/issues)**
+> on this repo — bug reports and feature requests are welcome and are how things get fixed and prioritized.
+
 ---
 
 ## Screenshots
