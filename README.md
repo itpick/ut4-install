@@ -40,6 +40,7 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 | Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
 | Per-map paks (macOS) | ~2 GB total (40 maps) | [Release `maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) |
+| Per-map paks (Windows) | ~2.4 GB total (40 maps) | [Release `maps-win-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-win-v1) |
 
 The **dedicated server / hub** package is a single Linux server build; whether it runs as a
 lobby **hub** or a single **dedicated match** is just the launch command (see below).
@@ -150,8 +151,9 @@ anything to play the standard rotation. Hubs can also advertise **extra** maps t
 does not have; when you join, the client fetches the map's pak over HTTPS, verifies its MD5,
 mounts it and loads in — no manual install.
 
-The per-map paks are hosted on the [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1)
-and [`maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) releases
+The per-map paks are hosted on the [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1),
+[`maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) and
+[`maps-win-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-win-v1) releases
 (one per platform). To advertise one from your own hub, add a redirect (the MD5 is the
 release asset's checksum):
 
