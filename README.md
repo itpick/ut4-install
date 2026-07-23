@@ -29,11 +29,11 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 
 ## Downloads
 
-| Artifact | Location |
-|---|---|
-| Linux client | `ghcr.io/itpick/ut4-install:linux-5.8` |
-| macOS client (Apple Silicon) | `ghcr.io/itpick/ut4-install:mac-5.8` |
-| Per-map paks (Linux) | Release [`maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
+| Artifact | Download size | Location |
+|---|---|---|
+| Linux client | 8.6 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:linux-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
+| macOS client (Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/itpick/ut4-install/pkgs/container/ut4-install) |
+| Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
 
 The client artifacts are pulled with [`oras`](https://oras.land) (a small CLI for OCI
 registries). Each is a single zstd-compressed tarball of the staged build.
