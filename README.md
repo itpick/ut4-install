@@ -18,6 +18,8 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 > 🐛 **Found a bug, or want a feature?** Please **[open an issue](https://github.com/itpick/ut4-install/issues)**
 > on this repo — bug reports and feature requests are welcome and are how things get fixed and prioritized.
 
+📋 **What's changed since the UE4.15 port?** See the **[CHANGELOG](CHANGELOG.md)** — the bugs fixed and features added on the way to UE5.8.
+
 ---
 
 ## Screenshots
