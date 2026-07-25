@@ -128,6 +128,31 @@ A master server reached over the public internet works without it; only LAN addr
 > **Launch it with `open`, not by running the binary directly.** A direct launch bypasses the
 > app sandbox and its entitlements, which breaks networking and login.
 
+### Troubleshooting
+
+**Mouse won't turn the view — you can move (WASD) and fire, but the camera won't rotate.**
+
+This is the macOS **app sandbox** revoking the game's mouse capture. Movement, firing, and
+menus all keep working — only continuous mouse-look dies — which makes it look like an input
+or menu bug when it isn't. In the client log you'll see the viewport capture mode repeatedly
+flip to `NoCapture` (`LogViewport: Display: Viewport MouseCaptureMode Changed, ... -> NoCapture`).
+A client signed with `com.apple.security.app-sandbox` cannot hold the permanent cursor capture
+that UE needs to feed continuous mouse-look.
+
+**Fix:** the macOS client must be signed **without** the app sandbox. Make sure you're on a
+`mac-5.8` build published **2026-07-25 or later** (earlier builds were sandboxed and have this
+bug). To check any build:
+
+```bash
+codesign -d --entitlements - UnrealTournament.app | grep app-sandbox   # must print nothing
+```
+
+If it prints `[Key] com.apple.security.app-sandbox`, that build is affected. Networking, LAN
+discovery, and sign-in all work fine on an unsandboxed build — the sandbox is not required for
+them, and removing it is what makes mouse-look work.
+
+> **Maintainer note:** sign/ship the client unsandboxed (`codesign --force --deep --sign - --identifier com.itpick.UnrealTournament58 UnrealTournament.app`, no `--entitlements`, or an entitlements file that does **not** contain `app-sandbox`). Do **not** re-add the sandbox to "fix networking" — that reintroduces the dead-mouse-look bug.
+
 ---
 
 ## Windows (Win64)
