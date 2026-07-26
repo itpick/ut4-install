@@ -9,6 +9,36 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Built | 2026-07-22 |
 | Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows ✅ |
 
+---
+
+## ▶ Easiest install — one click, auto-detects your OS
+
+**→ [itpick.github.io/ut4-install](https://itpick.github.io/ut4-install/)**
+
+Open that page and press the big download button — it detects your OS and hands you a
+one-click installer that downloads the game **and the full ~40-map set**, verifies it,
+unpacks it (and on macOS re-signs it correctly so mouse-look works), then launches it.
+No `oras`, no Docker, no command line.
+
+Prefer a terminal? Paste one line:
+
+```bash
+# Linux
+curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash
+# macOS
+curl -fsSL https://itpick.github.io/ut4-install/install.command | bash
+```
+```powershell
+# Windows (PowerShell)
+irm https://itpick.github.io/ut4-install/install.ps1 | iex
+```
+
+The installer pulls every stock map by default so you have the full set offline; add
+`--no-maps` (bash) / `-NoMaps` (PowerShell) to skip them. Everything below is the
+**manual / advanced** route.
+
+---
+
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
 size limit), and individual maps are published as downloadable paks on the
 [Releases](https://github.com/itpick/ut4-install/releases) page. Source lives in
@@ -33,6 +63,12 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 <p align="center"><img src="docs/login.png" alt="Login screen" width="320"></p>
 
 ---
+
+# Advanced / manual install
+
+> Most people should use the **[one-click installer](https://itpick.github.io/ut4-install/)**
+> above. Everything from here down is the manual route — pulling the client with `oras`,
+> hosting downloadable maps, and running your own server or hub.
 
 ## Downloads
 
