@@ -6,7 +6,7 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 |---|---|
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
-| Built | 2026-07-22 |
+| Built | 2026-07-26 |
 | Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows ✅ |
 
 ---
@@ -54,7 +54,7 @@ The installer pulls every stock map by default so you have the full set offline;
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
 size limit), and individual maps are published as downloadable paks on the
 [Releases](https://github.com/itpick/ut4-install/releases) page. Source lives in
-[itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `main`
+[itpick/UnrealTournament](https://github.com/itpick/UnrealTournament/tree/main) on the `main`
 branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/UnrealEngine).
 
 > 🐛 **Found a bug, or want a feature?** Please **[open an issue](https://github.com/itpick/ut4-install/issues)**
