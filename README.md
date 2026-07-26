@@ -20,6 +20,8 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 
 📋 **What's changed since the UE4.15 port?** See the **[CHANGELOG](CHANGELOG.md)** — the bugs fixed and features added on the way to UE5.8.
 
+❤️ **Enjoying it? Help keep it alive.** This is a free, community-run project — the servers, build machines, and development all cost real money. If you'd like to chip in, **[support it on Patreon](https://patreon.com/itpick)**. No paywall, ever — donations just keep the lights on.
+
 ---
 
 ## Screenshots
@@ -280,6 +282,14 @@ Or on the command line for an existing packaged build:
 - Player stats and MMR are unavailable (`McpUtils` is an Epic service)
 
 ---
+
+## Support the project
+
+Everything here — the game, the servers, the builds — is **free and always will be**. But keeping community multiplayer alive costs real money every month: always-on servers, build hardware, electricity, and development. If you'd like to help cover it:
+
+- **Patreon:** [patreon.com/itpick](https://patreon.com/itpick)
+
+Chip in monthly or drop a one-time tip — it all goes straight to keeping the servers online and the builds shipping. Thank you. ❤️
 
 ## Credits
 
