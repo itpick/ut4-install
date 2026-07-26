@@ -18,12 +18,13 @@
 
 [CmdletBinding()]
 param(
-  # TODO(url): point DownloadBase at the GitHub Release that hosts the CLIENT.
-  # e.g. https://github.com/itpick/ut4-install/releases/download/client-win64-5.8
+  # TODO(url): WIRED for Windows -> the client-win64-5.8 release below. (The
+  # tarball parts are being uploaded to that fixed tag; the URL is safe to ship
+  # regardless of upload timing.) Change only if the release tag ever moves.
   # Expected asset names:
   #   ut4-client-win64.tar.zst            (single file, if not split)
   #   ut4-client-win64.tar.zst.part-aa    ut4-client-win64.tar.zst.part-ab  ...
-  [string]$DownloadBase = "https://github.com/itpick/ut4-install/releases/latest/download",  # TODO(url)
+  [string]$DownloadBase = "https://github.com/itpick/ut4-install/releases/download/client-win64-5.8",  # TODO(url): wired for Windows
   [string]$InstallDir   = $(if ($env:UT_DIR) { $env:UT_DIR } else { Join-Path $env:USERPROFILE "UnrealTournament58" }),
   [switch]$NoMaps,
   [switch]$Force
