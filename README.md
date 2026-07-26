@@ -229,8 +229,16 @@ them, and removing it is what makes mouse-look work.
 ```powershell
 oras pull ghcr.io/itpick/ut4-install:win64-5.8
 tar --zstd -xf ut4-client-win64.tar.zst   # bsdtar (Win10/11) supports --zstd; or use 7-Zip
-.\UnrealTournament.exe
+.\UnrealTournament\Binaries\Win64\UnrealTournament-Win64-Shipping.exe
 ```
+
+> **If the game won't start (missing VC++ redist):** the one-click installer installs the
+> Visual C++ x64 runtime for you (bundled `UEPrereqSetup_x64.exe`, or Microsoft's
+> [`vc_redist.x64.exe`](https://aka.ms/vs/17/release/vc_redist.x64.exe)). Doing it manually,
+> the **top-level `UnrealTournament.exe` is UE's launcher/prereq stub** — if it errors asking
+> for the "VC++ redist 2018-2022", install the
+> [VC++ x64 redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) and run the real
+> game exe under **`UnrealTournament\Binaries\Win64\`** (e.g. `UnrealTournament-Win64-Shipping.exe`).
 
 Requires a **D3D11/D3D12-capable GPU** (a headless/GPU-less VM will exit with *"a D3D11-compatible
 GPU is required"*). The client is a single legacy pak (`bUseIoStore=False`), same as Linux/macOS,

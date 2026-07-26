@@ -152,15 +152,86 @@ function Install-Maps {
   Ok "Map set installed to $($pakdir.FullName)"
 }
 
+function Test-VCRedistInstalled {
+  # The VC++ 2015-2022 x64 runtime records itself under this key.
+  foreach ($k in @(
+      "HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64",
+      "HKLM:\SOFTWARE\WOW6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x64")) {
+    try { if ((Get-ItemProperty -Path $k -ErrorAction Stop).Installed -eq 1) { return $true } } catch {}
+  }
+  return $false
+}
+
+function Install-Prereqs {
+  # The game needs the Visual C++ x64 redistributable. Without it the top-level
+  # UnrealTournament.exe (UE's launcher/prereq stub) errors asking for the
+  # "VC++ redist 2018-2022". Install it so the game just launches.
+  if (Test-VCRedistInstalled) { Ok "Visual C++ x64 runtime already installed." ; return }
+  Say "Installing the Visual C++ x64 runtime the game needs ..."
+
+  # 1) Prefer the prerequisite installer bundled in the staged build.
+  $bundled = Get-ChildItem -Path $InstallDir -Recurse -Filter "UEPrereqSetup_x64.exe" -ErrorAction SilentlyContinue |
+             Select-Object -First 1
+  if ($bundled) {
+    Say "Running bundled UE prerequisites ($($bundled.Name)) ..."
+    try {
+      $p = Start-Process -FilePath $bundled.FullName -ArgumentList "/install","/quiet","/norestart" -Wait -PassThru
+      if ($p.ExitCode -in 0,1638,3010,5100) { Ok "Prerequisites installed."; return }
+      Warn "UE prereq setup returned exit $($p.ExitCode); falling back to Microsoft's redist ..."
+    } catch { Warn "Couldn't run the bundled prereq setup; falling back to Microsoft's redist ..." }
+  }
+
+  # 2) Fall back to Microsoft's standalone VC++ x64 redistributable.
+  $vc = Join-Path $env:TEMP "vc_redist.x64.exe"
+  try {
+    Say "Downloading Microsoft VC++ x64 redistributable ..."
+    Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $vc -UseBasicParsing
+    $p = Start-Process -FilePath $vc -ArgumentList "/install","/quiet","/norestart" -Wait -PassThru
+    Remove-Item $vc -ErrorAction SilentlyContinue
+    # 1638 = a newer version is already installed; 3010 = ok, reboot pending.
+    if ($p.ExitCode -in 0,1638,3010,5100) { Ok "Visual C++ x64 runtime installed." }
+    else { Warn "VC++ redist installer exit $($p.ExitCode). If the game won't start, install it from https://aka.ms/vs/17/release/vc_redist.x64.exe" }
+  } catch {
+    Warn "Couldn't auto-install the VC++ redist. If the game won't start, install it from https://aka.ms/vs/17/release/vc_redist.x64.exe"
+  }
+}
+
+function Find-GameExe {
+  # The top-level UnrealTournament.exe is UE's launcher/prereq stub; the real
+  # game binary lives under Binaries\Win64. Prefer that so launching doesn't
+  # re-trigger the prereq stub (which is what errored for players).
+  $bin = Get-ChildItem -Path $InstallDir -Recurse -Directory -ErrorAction SilentlyContinue |
+         Where-Object { $_.FullName -match 'Binaries\\Win64$' } | Select-Object -First 1
+  if ($bin) {
+    foreach ($pat in @("UnrealTournament-Win64-Shipping.exe","UnrealTournament-Win64-Development.exe","UnrealTournament.exe")) {
+      $c = Join-Path $bin.FullName $pat
+      if (Test-Path $c) { return $c }
+    }
+    $any = Get-ChildItem -Path $bin.FullName -Filter "UnrealTournament*.exe" -ErrorAction SilentlyContinue |
+           Sort-Object Length -Descending | Select-Object -First 1
+    if ($any) { return $any.FullName }
+  }
+  if (Test-Path $exePath) { return $exePath }
+  return $null
+}
+
 Install-Client
 Install-Maps
+Install-Prereqs
+
+$gameExe = Find-GameExe
+if (-not $gameExe) { $gameExe = $exePath }
 
 Write-Host ""
 Ok "Installed to $InstallDir"
 Write-Host ""
 Say "To play, run:"
-Write-Host "    & `"$exePath`""
+Write-Host "    & `"$gameExe`""
 Write-Host "    (needs a D3D11/D3D12-capable GPU)" -ForegroundColor DarkGray
+if ($gameExe -ne $exePath) {
+  Write-Host "    Note: this is the real game exe under Binaries\Win64 - the top-level" -ForegroundColor DarkGray
+  Write-Host "    UnrealTournament.exe is UE's prerequisite/launcher stub." -ForegroundColor DarkGray
+}
 Write-Host ""
 $go = Read-Host "Launch the game now? [Y/n]"
-if ($go -notmatch '^[nN]') { Start-Process -FilePath $exePath }
+if ($go -notmatch '^[nN]') { Start-Process -FilePath $gameExe }
