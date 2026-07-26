@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# UT4 on Unreal Engine 5.8 — Linux installer
+# UT4 on Unreal Engine 5.8 - Linux installer
 #
 # Works either way:
 #   curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash
@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-# ── config ─────────────────────────────────────────────────────────────────
+# -- config -----------------------------------------------------------------
 # TODO(url): point DOWNLOAD_BASE at the GitHub Release that hosts the CLIENT.
 # Once the Linux client is split + uploaded, this should be the release asset
 # base, e.g.  https://github.com/itpick/ut4-install/releases/download/client-linux-5.8
@@ -30,9 +30,9 @@ INSTALL_DIR="${INSTALL_DIR:-$HOME/UnrealTournament58}"
 RUN_DIR="LinuxNoEditor"
 RUN_CMD="./UnrealTournament.sh"
 WANT_MAPS=1
-# ────────────────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------
 
-# ── args (optional — pipe-safe: pass via `bash -s -- --no-maps`) ────────────
+# -- args (optional - pipe-safe: pass via `bash -s -- --no-maps`) ------------
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-maps) WANT_MAPS=0 ;;
@@ -45,9 +45,9 @@ done
 
 BLUE=$'\033[1;34m'; GREEN=$'\033[1;32m'; YELLOW=$'\033[1;33m'; RED=$'\033[1;31m'; DIM=$'\033[2m'; NC=$'\033[0m'
 say()  { printf '%s==>%s %s\n'  "$BLUE"  "$NC" "$*"; }
-ok()   { printf '%s✓%s %s\n'    "$GREEN" "$NC" "$*"; }
+ok()   { printf '%sOK%s %s\n'    "$GREEN" "$NC" "$*"; }
 warn() { printf '%s!%s %s\n'    "$YELLOW" "$NC" "$*"; }
-die()  { printf '%s✗ %s%s\n'    "$RED" "$*" "$NC" >&2; exit 1; }
+die()  { printf '%sX %s%s\n'    "$RED" "$*" "$NC" >&2; exit 1; }
 
 # Pipe-safe prompt: read from the controlling terminal, not stdin (which is the
 # script itself when piped from curl). Falls back to the default with no TTY.
@@ -67,7 +67,7 @@ if ! tar --help 2>/dev/null | grep -q -- '-I' && ! command -v zstd >/dev/null; t
 fi
 
 echo
-say "UT4 on Unreal Engine 5.8 — Linux installer"
+say "UT4 on Unreal Engine 5.8 - Linux installer"
 echo "${DIM}    Install dir: ${INSTALL_DIR}${NC}"
 echo "${DIM}    Client src:  ${DOWNLOAD_BASE}${NC}"
 echo "${DIM}    Maps:        $([ "$WANT_MAPS" = 1 ] && echo "full set ($MAPS_TAG)" || echo "skipped (--no-maps)")${NC}"
@@ -102,7 +102,7 @@ install_client() {
     done
   fi
   [ ${#parts[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
-The client release may not be uploaded yet — see the README for the manual (oras) install."
+The client release may not be uploaded yet - see the README for the manual (oras) install."
   ok "Fetched ${#parts[@]} file(s)."
 
   local final="$work/$ARCHIVE"
@@ -124,11 +124,11 @@ The client release may not be uploaded yet — see the README for the manual (or
 install_maps() {
   [ "$WANT_MAPS" = 1 ] || { say "Skipping map paks (--no-maps)."; return 0; }
   local pakdir; pakdir=$(find "$INSTALL_DIR" -type d -path '*/Content/Paks' 2>/dev/null | head -1)
-  [ -n "$pakdir" ] || { warn "Couldn't find the client's Content/Paks dir — skipping maps."; return 0; }
+  [ -n "$pakdir" ] || { warn "Couldn't find the client's Content/Paks dir - skipping maps."; return 0; }
 
   say "Fetching the full map set ($MAPS_TAG) ..."
   local json; json=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/tags/$MAPS_TAG") \
-    || { warn "Couldn't reach the maps release — skipping."; return 0; }
+    || { warn "Couldn't reach the maps release - skipping."; return 0; }
 
   # Optional checksum manifest (md5sum format), if the release ships one.
   local sums="" sums_url
@@ -136,7 +136,7 @@ install_maps() {
   [ -n "$sums_url" ] && sums=$(curl -fsSL "$sums_url" 2>/dev/null || true)
 
   local urls; urls=$(printf '%s' "$json" | grep -oE '"browser_download_url": *"[^"]*\.pak"' | sed -E 's/.*"(https[^"]+)".*/\1/')
-  [ -n "$urls" ] || { warn "No .pak assets found in $MAPS_TAG — skipping."; return 0; }
+  [ -n "$urls" ] || { warn "No .pak assets found in $MAPS_TAG - skipping."; return 0; }
 
   local total i=0; total=$(printf '%s\n' "$urls" | grep -c . || true)
   while IFS= read -r u; do
