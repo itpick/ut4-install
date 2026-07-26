@@ -20,18 +20,30 @@ one-click installer that downloads the game **and the full ~40-map set**, verifi
 unpacks it (and on macOS re-signs it correctly so mouse-look works), then launches it.
 No `oras`, no Docker, no command line.
 
-Prefer a terminal? Paste one line:
+**On macOS and Windows, the one-liner below is the recommended path** — piping the
+installer straight into a shell downloads nothing to disk, so it never trips macOS
+Gatekeeper or Windows SmartScreen. Paste one line:
 
 ```bash
+# macOS  (recommended — avoids Gatekeeper)
+curl -fsSL https://itpick.github.io/ut4-install/install.command | bash
 # Linux
 curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash
-# macOS
-curl -fsSL https://itpick.github.io/ut4-install/install.command | bash
 ```
 ```powershell
-# Windows (PowerShell)
+# Windows (PowerShell) — recommended, avoids SmartScreen
 irm https://itpick.github.io/ut4-install/install.ps1 | iex
 ```
+
+> **macOS Gatekeeper note.** If you download the `install.command` *file* instead of using
+> the one-liner, macOS will block it (*"Apple could not verify… Not Opened"*) — the build is
+> signed ad-hoc, without a paid Apple notarization. Use the one-liner above, or approve the
+> downloaded file: **right-click → Open**, or **System Settings → Privacy & Security → Open
+> Anyway**, or first run `xattr -d com.apple.quarantine install.command`.
+>
+> **Windows** behaves the same for a downloaded `install.ps1` (SmartScreen / execution
+> policy): prefer the one-liner, or run the file with
+> `powershell -ExecutionPolicy Bypass -File install.ps1` and choose *More info → Run anyway*.
 
 The installer pulls every stock map by default so you have the full set offline; add
 `--no-maps` (bash) / `-NoMaps` (PowerShell) to skip them. Everything below is the

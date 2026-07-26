@@ -24,7 +24,13 @@
     overflow-x:hidden;
   }
   a{color:var(--accent)}
-  .wrap{max-width:920px; margin:0 auto; padding:0 20px}
+  .wrap{max-width:920px; margin:0 auto; padding:0 20px; position:relative}
+  .ghlink{
+    position:absolute; top:18px; right:20px; z-index:5; color:var(--muted);
+    display:inline-flex; align-items:center; transition:color .15s ease, transform .15s ease;
+  }
+  .ghlink:hover{color:var(--ink); transform:translateY(-1px)}
+  .ghlink svg{display:block; width:26px; height:26px}
   header.hero{padding:64px 0 32px; text-align:center}
   .eyebrow{
     display:inline-block; letter-spacing:.28em; text-transform:uppercase;
@@ -76,6 +82,28 @@
   }
   .ol-copy:hover{background:var(--panel)}
   .ol-copy.done{color:var(--gold)}
+
+  /* One-liner promoted to the primary CTA (macOS / Windows) */
+  .oneliner.primary{margin-top:6px}
+  .oneliner.primary .ol-label{font-size:14px; color:var(--ink); font-weight:600; text-transform:none; letter-spacing:0}
+  .oneliner.primary .ol-box{border-color:var(--accent); box-shadow:0 0 0 3px rgba(0,194,255,.12); border-radius:14px}
+  .oneliner.primary .ol-cmd{padding:16px 16px; font-size:14px}
+  .oneliner.primary .ol-copy{padding:0 20px}
+  .rec-badge{
+    display:inline-block; font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+    color:#00121e; background:var(--accent); border-radius:6px; padding:2px 8px; margin-right:8px; vertical-align:1px;
+  }
+  .dl-alt{margin:14px 0 0; font-size:14px; color:var(--muted)}
+  .dl-alt a{color:var(--muted); text-decoration:none; border-bottom:1px dashed var(--line); cursor:pointer}
+  .dl-alt a:hover{border-bottom-color:var(--accent); color:var(--ink)}
+  .secnote{
+    display:none; margin:10px auto 0; max-width:560px; text-align:left; font-size:13px; line-height:1.5;
+    color:var(--muted); background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:10px; padding:12px 14px;
+  }
+  .secnote.show{display:block}
+  .secnote code{background:var(--bg2); padding:1px 6px; border-radius:5px; font-size:12px; color:#d6e2ff}
+  .secnote strong{color:var(--ink)}
 
   /* Post-download run hint */
   .hint{
@@ -138,6 +166,10 @@
 <body>
 <div class="wrap">
 
+  <a class="ghlink" href="https://github.com/itpick/ut4-install" target="_blank" rel="noopener" aria-label="View on GitHub" title="View on GitHub">
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"></path></svg>
+  </a>
+
   <header class="hero">
     <span class="eyebrow">Unreal Engine 5.8 · Community port</span>
     <h1>Unreal Tournament</h1>
@@ -149,15 +181,19 @@
         <span>⬇</span><span class="os" id="primaryLabel">Download</span>
       </a>
       <p class="subsize" id="primarySize"></p>
-      <p class="others" id="otherOs"></p>
 
       <div class="oneliner" id="oneliner">
-        <p class="ol-label" id="olLabel">Or paste this one line into a terminal</p>
+        <p class="ol-label" id="olLabel"></p>
         <div class="ol-box">
           <code class="ol-cmd" id="olCmd"></code>
           <button class="ol-copy" id="olCopy" onclick="copyOneLiner()">Copy</button>
         </div>
       </div>
+
+      <p class="dl-alt" id="dlAlt"></p>
+      <div class="secnote" id="secNote"></div>
+
+      <p class="others" id="otherOs"></p>
 
       <div class="hint" id="runHint">
         <h3>Almost there — one more step</h3>
@@ -259,25 +295,32 @@ const DOWNLOAD = {
   releasePage: "https://github.com/itpick/ut4-install/releases",
   os: {
     windows: {
-      name: "Windows", installer: "install.ps1", size: "~7.7 GB download (≈10 GB installed) · client + all maps",
+      name: "Windows", installer: "install.ps1", recommend: "oneliner",
+      size: "~7.7 GB download (≈10 GB installed) · client + all maps",
       oneliner: "irm https://itpick.github.io/ut4-install/install.ps1 | iex",
+      olLabelPrimary: "Paste this into PowerShell — nothing gets blocked:",
+      secnote: '<strong>Heads-up:</strong> a downloaded <code>install.ps1</code> can be stopped by SmartScreen or the execution policy. The one-liner above avoids that (nothing is saved to disk). If you download the file instead, run it with <code>powershell -ExecutionPolicy Bypass -File install.ps1</code> — and pick <strong>More info → Run anyway</strong> if SmartScreen warns.',
       run: [
         'Find <code>install.ps1</code> in your Downloads.',
-        'Right-click it → <strong>Run with PowerShell</strong>.',
-        'If Windows blocks it, open PowerShell and run: <code>powershell -ExecutionPolicy Bypass -File install.ps1</code>'
+        'Open PowerShell there and run: <code>powershell -ExecutionPolicy Bypass -File install.ps1</code>',
+        'If SmartScreen warns, choose <strong>More info → Run anyway</strong>.'
       ]
     },
     macos: {
-      name: "macOS", installer: "install.command", size: "14 GB download (≈16 GB installed) · Universal (Intel + Apple Silicon) · client + all maps",
+      name: "macOS", installer: "install.command", recommend: "oneliner",
+      size: "14 GB download (≈16 GB installed) · Universal (Intel + Apple Silicon) · client + all maps",
       oneliner: "curl -fsSL https://itpick.github.io/ut4-install/install.command | bash",
+      olLabelPrimary: "Paste this into Terminal — nothing to unblock:",
+      secnote: '<strong>Heads-up:</strong> macOS Gatekeeper blocks a downloaded installer script (<em>"Apple could not verify… Not Opened"</em>) — the app is signed ad-hoc, without a paid Apple notarization. The one-liner above avoids this completely (nothing is saved to disk). If you do download the file, approve it: <strong>right-click → Open</strong>, or <strong>System Settings → Privacy &amp; Security → Open Anyway</strong>, or first run <code>xattr -d com.apple.quarantine install.command</code>.',
       run: [
         'Find <code>install.command</code> in your Downloads.',
-        '<strong>Double-click it.</strong> (If macOS says it can\'t be opened, right-click → <strong>Open</strong> once.)',
-        'It downloads the client + all maps, re-signs the app unsandboxed, and launches the game for you.'
+        'macOS will block it on first open — approve it using one of the methods in the note above.',
+        'Then double-click it: it installs the client + all maps, re-signs the app unsandboxed, and launches the game.'
       ]
     },
     linux: {
-      name: "Linux", installer: "install.sh", size: "8.6 GB download (≈16 GB installed) · client + all maps",
+      name: "Linux", installer: "install.sh", recommend: "download",
+      size: "8.6 GB download (≈16 GB installed) · client + all maps",
       oneliner: "curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash",
       run: [
         'Open a terminal in your Downloads folder.',
@@ -307,26 +350,50 @@ const ORDER = ["windows","macos","linux"];
 let currentOS = detectOS();
 
 function render(){
+  const btn   = document.getElementById("primaryBtn");
   const label = document.getElementById("primaryLabel");
   const size  = document.getElementById("primarySize");
   const others= document.getElementById("otherOs");
   const olWrap= document.getElementById("oneliner");
   const olCmd = document.getElementById("olCmd");
   const olLbl = document.getElementById("olLabel");
+  const dlAlt = document.getElementById("dlAlt");
+  const secNote = document.getElementById("secNote");
+
+  // reset shared state
+  btn.style.display = ""; size.style.display = "";
+  olWrap.classList.remove("primary");
+  dlAlt.innerHTML = "";
+  secNote.classList.remove("show"); secNote.innerHTML = "";
 
   if (currentOS && DOWNLOAD.os[currentOS]) {
     const os = DOWNLOAD.os[currentOS];
-    label.textContent = "Download for " + os.name;
-    size.textContent = os.size;
-    // The other two OSes as small secondary links.
     const rest = ORDER.filter(k => k !== currentOS);
     others.innerHTML = rest.map(k =>
       `<a href="#" onclick="return switchOS('${k}',event)">On ${DOWNLOAD.os[k].name}?</a>`
     ).join("");
-    // pivpn-style one-liner for this OS.
-    olLbl.textContent = "Prefer the terminal? Paste this one line (" + os.name + ")";
     olCmd.textContent = os.oneliner;
-    olWrap.style.display = "";
+
+    if (os.recommend === "oneliner") {
+      // macOS / Windows: the one-liner leads — a downloaded script trips
+      // Gatekeeper / SmartScreen, but piping to a shell downloads nothing.
+      btn.style.display = "none";
+      size.style.display = "none";
+      olWrap.style.display = "";
+      olWrap.classList.add("primary");
+      olLbl.innerHTML = '<span class="rec-badge">Recommended</span>' + os.olLabelPrimary;
+      // Secondary: download the installer file instead, with the security note.
+      dlAlt.innerHTML =
+        `<a onclick="startDownload('${currentOS}')">⬇ Or download the installer file</a>`
+        + ` &nbsp;·&nbsp; ${os.size}`;
+      if (os.secnote) { secNote.innerHTML = os.secnote; secNote.classList.add("show"); }
+    } else {
+      // Linux: no Gatekeeper — the file download stays the big primary button.
+      label.textContent = "Download for " + os.name;
+      size.textContent = os.size;
+      olWrap.style.display = "";
+      olLbl.textContent = "Prefer the terminal? Paste this one line (" + os.name + ")";
+    }
   } else {
     // Uncertain — show all three clearly, hide the single one-liner.
     label.textContent = "Choose your download";
@@ -357,8 +424,10 @@ function switchOS(key, ev){
   if (ev) ev.preventDefault();
   currentOS = key;
   render();
-  // If user explicitly picked one from the "uncertain" state, start the download.
-  startDownload(key);
+  // Auto-start only where a downloaded file is the recommended path (Linux).
+  // For macOS/Windows the one-liner leads, so we don't trigger a file download
+  // that the OS would just quarantine — the user copies the command instead.
+  if (DOWNLOAD.os[key] && DOWNLOAD.os[key].recommend === "download") startDownload(key);
   return false;
 }
 
