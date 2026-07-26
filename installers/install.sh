@@ -142,7 +142,7 @@ install_maps() {
   while IFS= read -r u; do
     [ -n "$u" ] || continue; i=$((i+1))
     local name dest; name=$(basename "$u"); dest="$pakdir/$name"
-    if [ -s "$dest" ]; then printf '  %s[%d/%d]%s %s (have it)\n' "$DIM" "$i" "$total" "$NC" "$name"; continue; fi
+    if [ -s "$dest" ]; then printf '  %s[%d/%d] %s (have it)%s\n' "$DIM" "$i" "$total" "$name" "$NC"; continue; fi
     printf '  [%d/%d] %s\n' "$i" "$total" "$name"
     curl -fL --retry 3 -C - -o "$dest" "$u" || { warn "Failed: $name (skipping)"; rm -f "$dest"; continue; }
     if [ -n "$sums" ]; then
