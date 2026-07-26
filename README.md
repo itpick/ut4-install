@@ -54,7 +54,7 @@ The installer pulls every stock map by default so you have the full set offline;
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file
 size limit), and individual maps are published as downloadable paks on the
 [Releases](https://github.com/itpick/ut4-install/releases) page. Source lives in
-[itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `ue5.8-port`
+[itpick/UnrealTournament](https://github.com/itpick/UnrealTournament) on the `main`
 branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/UnrealEngine).
 
 > 🐛 **Found a bug, or want a feature?** Please **[open an issue](https://github.com/itpick/ut4-install/issues)**
