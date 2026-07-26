@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unreal Tournament — rebuilt on Unreal Engine 5.8</title>
+<meta name="description" content="Unreal Tournament, rebuilt on Unreal Engine 5.8 — free. One-click download for Windows, macOS and Linux.">
+<style>
+  :root{
+    --bg:#0b0d12; --bg2:#12151d; --panel:#161a24; --panel2:#1c2130;
+    --ink:#eef1f7; --muted:#9aa3b5; --line:#262d3d;
+    --accent:#00c2ff; --accent2:#0077ff; --gold:#ffb020; --red:#e23b3b;
+    --shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:
+      radial-gradient(1200px 600px at 50% -10%, #14203a 0%, transparent 60%),
+      radial-gradient(900px 500px at 90% 10%, #1a1030 0%, transparent 55%),
+      var(--bg);
+    color:var(--ink);
+    font:16px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    overflow-x:hidden;
+  }
+  a{color:var(--accent)}
+  .wrap{max-width:920px; margin:0 auto; padding:0 20px}
+  header.hero{padding:64px 0 32px; text-align:center}
+  .eyebrow{
+    display:inline-block; letter-spacing:.28em; text-transform:uppercase;
+    font-size:12px; font-weight:700; color:var(--accent);
+    border:1px solid var(--line); border-radius:999px; padding:6px 14px; margin-bottom:22px;
+    background:rgba(0,194,255,.06);
+  }
+  h1{
+    font-size:clamp(34px,7vw,62px); line-height:1.02; margin:0 0 14px; font-weight:800;
+    letter-spacing:-.02em;
+    background:linear-gradient(180deg,#ffffff 0%,#a9c6ff 120%);
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+  }
+  .pitch{font-size:clamp(17px,2.4vw,21px); color:var(--muted); margin:0 auto 8px; max-width:640px}
+  .free{color:var(--gold); font-weight:700}
+
+  /* Download block */
+  .dl{margin:34px auto 8px; max-width:520px}
+  .btn-primary{
+    display:flex; align-items:center; justify-content:center; gap:12px;
+    width:100%; padding:20px 24px; border:0; border-radius:16px; cursor:pointer;
+    font-size:clamp(17px,2.6vw,21px); font-weight:800; color:#00121e; text-decoration:none;
+    background:linear-gradient(180deg,#38d0ff 0%,var(--accent) 55%,var(--accent2) 100%);
+    box-shadow:var(--shadow), inset 0 1px 0 rgba(255,255,255,.5);
+    transition:transform .08s ease, filter .15s ease;
+  }
+  .btn-primary:hover{filter:brightness(1.06)}
+  .btn-primary:active{transform:translateY(1px)}
+  .btn-primary .os{white-space:nowrap}
+  .subsize{margin:10px 0 0; font-size:13px; color:var(--muted)}
+  .others{margin:16px 0 0; font-size:14px; color:var(--muted)}
+  .others a{margin:0 10px; white-space:nowrap; text-decoration:none; border-bottom:1px dashed var(--line); padding-bottom:2px}
+  .others a:hover{border-bottom-color:var(--accent)}
+
+  /* One-liner (pivpn-style) box */
+  .oneliner{margin:22px auto 0; max-width:560px; text-align:left}
+  .oneliner .ol-label{font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:0 0 8px}
+  .ol-box{
+    display:flex; align-items:stretch; gap:0; background:#0a0c11; border:1px solid var(--line);
+    border-radius:10px; overflow:hidden;
+  }
+  .ol-cmd{
+    flex:1; min-width:0; overflow-x:auto; white-space:nowrap; padding:13px 14px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:13px; color:#c9f2ff;
+  }
+  .ol-copy{
+    flex:0 0 auto; border:0; border-left:1px solid var(--line); background:var(--panel2); color:var(--ink);
+    padding:0 16px; cursor:pointer; font-weight:700; font-size:13px; white-space:nowrap;
+  }
+  .ol-copy:hover{background:var(--panel)}
+  .ol-copy.done{color:var(--gold)}
+
+  /* Post-download run hint */
+  .hint{
+    display:none; margin:20px auto 0; max-width:560px; text-align:left;
+    background:var(--panel); border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:12px; padding:16px 18px;
+  }
+  .hint.show{display:block}
+  .hint h3{margin:0 0 8px; font-size:15px; color:var(--gold)}
+  .hint ol{margin:0; padding-left:20px; color:var(--ink); font-size:14.5px}
+  .hint li{margin:4px 0}
+  .hint code{background:var(--bg2); padding:2px 7px; border-radius:6px; font-size:13px}
+
+  /* Shots */
+  .shots{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin:52px 0 8px}
+  .shots figure{margin:0}
+  .shots img{
+    width:100%; height:100%; object-fit:cover; aspect-ratio:16/10; display:block;
+    border-radius:12px; border:1px solid var(--line); background:var(--panel);
+  }
+  @media (max-width:640px){ .shots{grid-template-columns:1fr} .shots img{aspect-ratio:16/9} }
+
+  /* Sections */
+  section.card{
+    background:linear-gradient(180deg,var(--panel) 0%,var(--bg2) 100%);
+    border:1px solid var(--line); border-radius:16px; padding:24px 24px; margin:22px 0;
+  }
+  section.card h2{margin:0 0 10px; font-size:20px}
+  section.card p{color:var(--muted); margin:0 0 10px}
+  section.card p:last-child{margin-bottom:0}
+  .pill-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:14px}
+  .pill{font-size:12.5px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:5px 12px; background:var(--panel2)}
+
+  details.adv{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:4px 20px; margin:22px 0}
+  details.adv summary{
+    cursor:pointer; padding:16px 0; font-weight:700; list-style:none; display:flex; align-items:center; gap:10px;
+  }
+  details.adv summary::-webkit-details-marker{display:none}
+  details.adv summary::before{content:"▸"; color:var(--accent); transition:transform .15s}
+  details.adv[open] summary::before{transform:rotate(90deg)}
+  details.adv .body{padding:0 0 18px; color:var(--muted)}
+  details.adv h3{color:var(--ink); font-size:15px; margin:18px 0 8px}
+  pre{
+    background:#0a0c11; border:1px solid var(--line); border-radius:10px; padding:14px;
+    overflow-x:auto; font-size:13px; line-height:1.5; color:#d6e2ff; margin:8px 0;
+  }
+  pre code{white-space:pre}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  .warn{border-left:3px solid var(--red); background:rgba(226,59,59,.06); padding:12px 16px; border-radius:8px; margin:10px 0; color:var(--ink); font-size:14px}
+
+  footer{text-align:center; padding:40px 0 60px; color:var(--muted); font-size:14px}
+  .support{
+    display:inline-flex; align-items:center; gap:10px; text-decoration:none; font-weight:700; color:var(--ink);
+    background:linear-gradient(180deg,#2a1b2f,#20141f); border:1px solid #4a2740; border-radius:12px; padding:12px 20px; margin:8px 0 18px;
+  }
+  .support:hover{filter:brightness(1.12)}
+  footer .fine{font-size:12.5px; opacity:.8; max-width:640px; margin:14px auto 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="eyebrow">Unreal Engine 5.8 · Community port</span>
+    <h1>Unreal Tournament</h1>
+    <p class="pitch">Unreal Tournament, rebuilt on Unreal Engine 5.8 — <span class="free">free</span>.</p>
+    <p class="pitch" style="font-size:15px">The classic arena shooter, ported forward to a modern engine. Windows, macOS &amp; Linux.</p>
+
+    <div class="dl">
+      <a id="primaryBtn" class="btn-primary" href="#" onclick="return primaryClick(event)">
+        <span>⬇</span><span class="os" id="primaryLabel">Download</span>
+      </a>
+      <p class="subsize" id="primarySize"></p>
+      <p class="others" id="otherOs"></p>
+
+      <div class="oneliner" id="oneliner">
+        <p class="ol-label" id="olLabel">Or paste this one line into a terminal</p>
+        <div class="ol-box">
+          <code class="ol-cmd" id="olCmd"></code>
+          <button class="ol-copy" id="olCopy" onclick="copyOneLiner()">Copy</button>
+        </div>
+      </div>
+
+      <div class="hint" id="runHint">
+        <h3>Almost there — one more step</h3>
+        <div id="runHintBody"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="shots" id="shots">
+    <figure><img src="mainmenu.png" alt="Main menu" loading="lazy"></figure>
+    <figure><img src="hub.png" alt="Hub lobby" loading="lazy"></figure>
+    <figure><img src="login.png" alt="Login screen" loading="lazy"></figure>
+  </div>
+
+  <section class="card">
+    <h2>What is this?</h2>
+    <p>An unofficial, community-run port of <strong>Unreal Tournament (2017)</strong> forward from Unreal Engine 4.15 to <strong>Unreal Engine 5.8</strong> — client, dedicated server and hubs. Deathmatch, Capture the Flag and Blitz all play end-to-end, with bots, teams, downloadable maps and lobby hubs.</p>
+    <p>No paywall, no launcher, no account required to play offline. It's free and always will be. The installer grabs the client <strong>and the full ~40-map set</strong>, so you have every map offline — not just what a hub happens to serve.</p>
+    <div class="pill-row">
+      <span class="pill">Engine: UE 5.8.0</span>
+      <span class="pill">Windows · macOS (Universal) · Linux</span>
+      <span class="pill">Deathmatch · CTF · Blitz</span>
+      <span class="pill">~40 maps included</span>
+      <span class="pill"><a href="https://github.com/itpick/ut4-install/blob/main/CHANGELOG.md" style="text-decoration:none">What's changed → CHANGELOG</a></span>
+    </div>
+  </section>
+
+  <details class="adv">
+    <summary>Having trouble? / Advanced install (oras, manual)</summary>
+    <div class="body">
+      <p>The one-click installer downloads a small script that fetches, verifies and unpacks the client <em>and the full map set</em> for you. If you'd rather do it by hand — or the button didn't work — here are the manual routes.</p>
+
+      <h3>Run the installer from a terminal</h3>
+      <p>Same thing the button does (auto-detects the split client parts and pulls every map). Add <code>--no-maps</code> to skip the map paks:</p>
+      <pre><code># Linux
+curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash
+
+# macOS
+curl -fsSL https://itpick.github.io/ut4-install/install.command | bash
+
+# Windows (PowerShell)
+irm https://itpick.github.io/ut4-install/install.ps1 | iex
+
+# skip the ~40 map paks:
+curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash -s -- --no-maps</code></pre>
+
+      <h3>Manual download with <code>oras</code></h3>
+      <p>The client is also published as an OCI artifact on GitHub Container Registry. Install <a href="https://oras.land/docs/installation">oras</a>, then:</p>
+      <pre><code># Linux
+oras pull ghcr.io/itpick/ut4-install:linux-5.8
+tar -I zstd -xf ut4-client-linux.tar.zst
+cd LinuxNoEditor && ./UnrealTournament.sh        # add -onethread if it hangs
+
+# macOS (Universal — Intel + Apple Silicon)
+oras pull ghcr.io/itpick/ut4-install:mac-5.8
+tar -I zstd -xf ut4-client-mac.tar.zst
+xattr -dr com.apple.quarantine UnrealTournament.app
+codesign --force --deep --sign - --identifier com.itpick.UnrealTournament58 UnrealTournament.app
+open UnrealTournament.app
+
+# Windows (Win64)
+oras pull ghcr.io/itpick/ut4-install:win64-5.8
+tar --zstd -xf ut4-client-win64.tar.zst
+.\UnrealTournament.exe</code></pre>
+
+      <div class="warn">
+        <strong>macOS mouse-look note:</strong> the client must be signed <strong>without</strong> the app sandbox, or continuous mouse-look dies in matches (you can move &amp; fire, but the view won't turn). The <code>codesign … --identifier com.itpick.UnrealTournament58</code> line above re-signs it unsandboxed — that's exactly what the one-click installer does. Do <em>not</em> add an <code>--entitlements</code> file containing <code>app-sandbox</code>.
+      </div>
+
+      <p>Full docs — signing in, running your own hub, ports, downloadable maps — are in the <a href="https://github.com/itpick/ut4-install#readme">README</a>.</p>
+    </div>
+  </details>
+
+  <footer>
+    <p>Enjoying it? This is free and community-run — servers, build machines and electricity all cost real money.</p>
+    <a class="support" href="https://patreon.com/itpick">❤️ Support it on Patreon</a>
+    <p class="fine">Unreal Tournament and Unreal Engine are trademarks of Epic Games, Inc. This is a community port of Epic's open-sourced UT4 code, unaffiliated with and unendorsed by Epic.</p>
+  </footer>
+
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────────────────
+   DOWNLOAD config — edit URLs here.
+   The primary button downloads a small per-OS installer script from the repo;
+   that script then fetches the (large, possibly split) client from a GitHub
+   Release. To wire real Release URLs, edit DOWNLOAD_BASE inside each installer
+   script in /installers — nothing here needs to change for that.
+   ──────────────────────────────────────────────────────────────────────── */
+const DOWNLOAD = {
+  // The installer scripts are served by GitHub Pages from /docs, i.e. this same
+  // site — so they're same-origin and download cleanly. Relative base:
+  installerBase: ".",
+  // Full site URL, used for the copy-paste one-liner commands.
+  site: "https://itpick.github.io/ut4-install",
+  // Fallback if you'd rather link straight to the Release page.
+  // TODO(url): swap for the specific client release tag once it exists, e.g.
+  //   https://github.com/itpick/ut4-install/releases/tag/client-5.8
+  releasePage: "https://github.com/itpick/ut4-install/releases",
+  os: {
+    windows: {
+      name: "Windows", installer: "install.ps1", size: "~7.7 GB download (≈10 GB installed) · client + all maps",
+      oneliner: "irm https://itpick.github.io/ut4-install/install.ps1 | iex",
+      run: [
+        'Find <code>install.ps1</code> in your Downloads.',
+        'Right-click it → <strong>Run with PowerShell</strong>.',
+        'If Windows blocks it, open PowerShell and run: <code>powershell -ExecutionPolicy Bypass -File install.ps1</code>'
+      ]
+    },
+    macos: {
+      name: "macOS", installer: "install.command", size: "14 GB download (≈16 GB installed) · Universal (Intel + Apple Silicon) · client + all maps",
+      oneliner: "curl -fsSL https://itpick.github.io/ut4-install/install.command | bash",
+      run: [
+        'Find <code>install.command</code> in your Downloads.',
+        '<strong>Double-click it.</strong> (If macOS says it can\'t be opened, right-click → <strong>Open</strong> once.)',
+        'It downloads the client + all maps, re-signs the app unsandboxed, and launches the game for you.'
+      ]
+    },
+    linux: {
+      name: "Linux", installer: "install.sh", size: "8.6 GB download (≈16 GB installed) · client + all maps",
+      oneliner: "curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash",
+      run: [
+        'Open a terminal in your Downloads folder.',
+        'Run: <code>bash install.sh</code>',
+        'When it finishes it prints the command to launch the game.'
+      ]
+    }
+  }
+};
+
+/* OS auto-detection: userAgentData first, then userAgent / platform fallback. */
+function detectOS(){
+  const p = (navigator.userAgentData && navigator.userAgentData.platform || "").toLowerCase();
+  if (p) {
+    if (p.includes("win")) return "windows";
+    if (p.includes("mac")) return "macos";
+    if (p.includes("linux") || p.includes("chrome os") || p.includes("android")) return "linux";
+  }
+  const ua = (navigator.userAgent || navigator.platform || "").toLowerCase();
+  if (ua.includes("windows") || ua.includes("win64") || ua.includes("win32")) return "windows";
+  if (ua.includes("mac os") || ua.includes("macintosh") || ua.includes("mac os x")) return "macos";
+  if (ua.includes("linux") || ua.includes("x11") || ua.includes("cros") || ua.includes("android")) return "linux";
+  return null; // uncertain
+}
+
+const ORDER = ["windows","macos","linux"];
+let currentOS = detectOS();
+
+function render(){
+  const label = document.getElementById("primaryLabel");
+  const size  = document.getElementById("primarySize");
+  const others= document.getElementById("otherOs");
+  const olWrap= document.getElementById("oneliner");
+  const olCmd = document.getElementById("olCmd");
+  const olLbl = document.getElementById("olLabel");
+
+  if (currentOS && DOWNLOAD.os[currentOS]) {
+    const os = DOWNLOAD.os[currentOS];
+    label.textContent = "Download for " + os.name;
+    size.textContent = os.size;
+    // The other two OSes as small secondary links.
+    const rest = ORDER.filter(k => k !== currentOS);
+    others.innerHTML = rest.map(k =>
+      `<a href="#" onclick="return switchOS('${k}',event)">On ${DOWNLOAD.os[k].name}?</a>`
+    ).join("");
+    // pivpn-style one-liner for this OS.
+    olLbl.textContent = "Prefer the terminal? Paste this one line (" + os.name + ")";
+    olCmd.textContent = os.oneliner;
+    olWrap.style.display = "";
+  } else {
+    // Uncertain — show all three clearly, hide the single one-liner.
+    label.textContent = "Choose your download";
+    size.textContent = "We couldn't detect your OS — pick one:";
+    others.innerHTML = ORDER.map(k =>
+      `<a href="#" onclick="return switchOS('${k}',event)">${DOWNLOAD.os[k].name}</a>`
+    ).join("");
+    olWrap.style.display = "none";
+  }
+}
+
+function copyOneLiner(){
+  const cmd = document.getElementById("olCmd").textContent;
+  const btn = document.getElementById("olCopy");
+  const done = () => { btn.textContent = "Copied ✓"; btn.classList.add("done"); setTimeout(()=>{ btn.textContent="Copy"; btn.classList.remove("done"); }, 1800); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(cmd).then(done).catch(fallbackCopy);
+  } else { fallbackCopy(); }
+  function fallbackCopy(){
+    const r = document.createRange(); r.selectNodeContents(document.getElementById("olCmd"));
+    const s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    try { document.execCommand("copy"); done(); } catch(e){}
+    s.removeAllRanges();
+  }
+}
+
+function switchOS(key, ev){
+  if (ev) ev.preventDefault();
+  currentOS = key;
+  render();
+  // If user explicitly picked one from the "uncertain" state, start the download.
+  startDownload(key);
+  return false;
+}
+
+function primaryClick(ev){
+  ev.preventDefault();
+  if (currentOS && DOWNLOAD.os[currentOS]) startDownload(currentOS);
+  else document.getElementById("otherOs").scrollIntoView({behavior:"smooth", block:"center"});
+  return false;
+}
+
+async function startDownload(key){
+  const os = DOWNLOAD.os[key];
+  const url = DOWNLOAD.installerBase + "/" + os.installer;
+  showRunHint(key);
+  try {
+    // raw.githubusercontent sends CORS *, so we can blob it for a clean,
+    // correctly-named download instead of showing the script as a text page.
+    const res = await fetch(url, {cache:"no-store"});
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const blob = await res.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = os.installer;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+  } catch (e) {
+    // Fallback: navigate straight to the raw installer (browser will save it).
+    window.location.href = url;
+  }
+}
+
+function showRunHint(key){
+  const os = DOWNLOAD.os[key];
+  const box = document.getElementById("runHint");
+  const body = document.getElementById("runHintBody");
+  body.innerHTML =
+    "<p style='margin:0 0 8px;color:var(--muted);font-size:14px'>Downloading the "
+    + os.name + " installer. Once it's saved:</p><ol>"
+    + os.run.map(s => "<li>" + s + "</li>").join("") + "</ol>";
+  box.classList.add("show");
+}
+
+render();
+</script>
+</body>
+</html>
