@@ -364,6 +364,23 @@ Everything here — the game, the servers, the builds — is **free and always w
 
 Chip in monthly or drop a one-time tip — it all goes straight to keeping the servers online and the builds shipping. Thank you. ❤️
 
+## Mods & community content
+
+Popular UT4 community mods are being ported to UE5.8. **None are finished yet** — this table is updated as each lands:
+
+| Mod | What it is | Status |
+|---|---|---|
+| [NetcodePlus](https://github.com/jmortley/NetcodePlusUT4) | Improved netcode (hit-reg, prediction, lag comp) + community game modes (ElimPlus, NCLeague, Wipeout…) | 🔨 In progress — porting the plugin to UE5.8 |
+| Domination (+ MultiTeam) | The classic Domination game mode | 🔨 In progress |
+| ShockFix | Shock-rifle hit-registration fix | 📋 Planned |
+| Betrayal | Betrayal game mode | 📋 Planned |
+| StatSQL | Match-stats backend | 📋 Planned |
+| UTVehicles | Vehicles | 📋 Planned (large) |
+
+Ports are done from the mod authors' open source and, where it makes sense, contributed back upstream.
+
+**Community maps:** the full stock map set (DM, CTF, and FlagRun/Blitz) ships baked into the client. Custom community maps that survive only as cooked UE4.15 paks **can't be rebuilt for UE5.8** without the original mappers' uncooked source — we're cataloguing them and reaching out to authors.
+
 ## Credits
 
 Unreal Tournament and Unreal Engine are trademarks of Epic Games, Inc. This is a
