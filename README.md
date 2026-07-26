@@ -82,6 +82,10 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 > above. Everything from here down is the manual route — pulling the client with `oras`,
 > hosting downloadable maps, and running your own server or hub.
 
+🛠️ **Making maps or mods?** See **[EDITOR.md](EDITOR.md)** — how to build the **UT4 (UE5.8)
+Editor** from source on macOS, Linux and Windows (and the plan for pre-built editor
+packages). The editor is only needed to open/edit content; to just play, use the installer above.
+
 ## Downloads
 
 | Artifact | Download size | Location |
