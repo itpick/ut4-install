@@ -1,0 +1,140 @@
+name: Split OCI client into a Release
+
+# Whenever a client is pushed to GHCR (ghcr.io/itpick/ut4-install:<plat>-5.8),
+# pull it, split the tarball into <2 GB parts, and (re)publish them to a
+# `client-<plat>-5.8` GitHub Release so the one-click installers can fetch the
+# game without oras/Docker. Works for EVERY OS (linux, mac, win64) — a matrix
+# gives each platform its own runner (full disk, in parallel).
+#
+# Triggers:
+#   - registry_package: fires when a package version is published to GHCR and
+#     auto-splits just the platform that changed. (Best-effort — GitHub is
+#     inconsistent about firing this for oras-pushed OCI *artifacts*.)
+#   - workflow_dispatch: the RELIABLE path. `tag: all` (or blank) splits all
+#     three; or pass a single `linux-5.8`/`mac-5.8`/`win64-5.8`. Have the push
+#     tooling call it right after `oras push`:
+#       gh workflow run split-oci-client-release.yml -f tag=win64-5.8
+on:
+  registry_package:
+    types: [published, updated]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Client tag to split: all | linux-5.8 | mac-5.8 | win64-5.8 (blank = all)"
+        required: false
+        type: string
+
+permissions:
+  contents: write   # create/update Releases
+  packages: read    # pull from GHCR
+
+jobs:
+  # Decide which platform tag(s) to process -> a JSON matrix. Empty => no split.
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.m.outputs.tags }}
+    steps:
+      - id: m
+        run: |
+          ALL='["linux-5.8","mac-5.8","win64-5.8"]'
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            IN="${{ github.event.inputs.tag }}"
+            case "$IN" in
+              ""|all) TAGS="$ALL" ;;
+              linux-5.8|mac-5.8|win64-5.8) TAGS="[\"$IN\"]" ;;
+              *) echo "Unknown tag '$IN' — nothing to do."; TAGS="[]" ;;
+            esac
+          else
+            EV='${{ github.event.registry_package.package_version.container_metadata.tag.name }}'
+            case "$EV" in
+              linux-5.8|mac-5.8|win64-5.8) TAGS="[\"$EV\"]" ;;
+              *) echo "Package tag '$EV' is not a client tag — nothing to do."; TAGS="[]" ;;
+            esac
+          fi
+          echo "Will process: $TAGS"
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+
+  split:
+    needs: setup
+    if: needs.setup.outputs.tags != '[]'
+    runs-on: ubuntu-latest
+    # one runner per platform, in parallel; don't let one failure cancel the rest
+    strategy:
+      fail-fast: false
+      matrix:
+        tag: ${{ fromJSON(needs.setup.outputs.tags) }}
+    # serialize per-tag runs so re-pushes don't clobber a release mid-upload
+    concurrency:
+      group: split-${{ matrix.tag }}
+      cancel-in-progress: false
+    steps:
+      - name: Free up runner disk
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          large-packages: true
+          swap-storage: true
+          docker-images: true
+
+      - name: Install oras
+        run: |
+          set -euo pipefail
+          VER=1.2.0
+          curl -sSLO "https://github.com/oras-project/oras/releases/download/v${VER}/oras_${VER}_linux_amd64.tar.gz"
+          mkdir -p oras-bin && tar -xzf "oras_${VER}_linux_amd64.tar.gz" -C oras-bin oras
+          sudo mv oras-bin/oras /usr/local/bin/oras
+          oras version
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull, split, and publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ matrix.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          PLAT="${TAG%-5.8}"                 # linux-5.8 -> linux, win64-5.8 -> win64
+          ARCHIVE="ut4-client-${PLAT}.tar.zst"
+          REL="client-${TAG}"
+
+          echo "::group::Pull ghcr.io/${REPO}:${TAG}"
+          oras pull "ghcr.io/${REPO}:${TAG}"
+          ls -lh
+          echo "::endgroup::"
+
+          # oras writes the layer using its title annotation (ut4-client-<plat>.tar.zst);
+          # fall back to the largest .tar.zst, then normalize the name.
+          if [ ! -f "$ARCHIVE" ]; then
+            FOUND="$(ls -S *.tar.zst 2>/dev/null | head -1 || true)"
+            [ -n "$FOUND" ] || { echo "No client tarball found after pull:"; ls -la; exit 1; }
+            mv -f "$FOUND" "$ARCHIVE"
+          fi
+          echo "Archive: $ARCHIVE ($(stat -c%s "$ARCHIVE") bytes)"
+
+          echo "::group::Split into <2 GB parts"
+          split -b 1900m -a 2 "$ARCHIVE" "${ARCHIVE}.part-"
+          rm -f "$ARCHIVE"                   # free the original; parts reassemble it
+          ls -lh "${ARCHIVE}".part-*
+          echo "::endgroup::"
+
+          echo "::group::Ensure release $REL exists"
+          if ! gh release view "$REL" -R "$REPO" >/dev/null 2>&1; then
+            gh release create "$REL" -R "$REPO" \
+              --title "Client ${PLAT} (UE5.8) - auto-split" \
+              --notes "Auto-split from \`ghcr.io/${REPO}:${TAG}\` by the split-oci-client-release workflow. The one-click installers download \`${ARCHIVE}.part-*\` and reassemble them (\`cat *.part-* > ${ARCHIVE}\`)."
+          fi
+          # drop stale parts from a previous (possibly larger) build so a smaller
+          # new client doesn't leave orphan part-XX assets behind
+          for a in $(gh release view "$REL" -R "$REPO" --json assets -q '.assets[].name' 2>/dev/null | grep -E '\.part-[a-z]{2}$' || true); do
+            echo "removing stale asset $a"; gh release delete-asset "$REL" "$a" -R "$REPO" --yes || true
+          done
+          echo "::endgroup::"
+
+          echo "::group::Upload parts"
+          gh release upload "$REL" "${ARCHIVE}".part-* -R "$REPO" --clobber
+          echo "::endgroup::"
+
+          echo "Published: https://github.com/${REPO}/releases/tag/${REL}"
