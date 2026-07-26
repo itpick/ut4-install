@@ -109,6 +109,19 @@ registries). Each is a single zstd-compressed tarball of the staged build.
 oras pull ghcr.io/itpick/ut4-install:linux-5.8      # or :mac-5.8
 ```
 
+### Editor (for mappers)
+
+Want to make **maps or mods**? You'll need the UT4 (UE5.8) **Editor** (not needed just to play).
+
+| Editor | Status | Get it |
+|---|---|---|
+| macOS editor   | Build from source now · pre-built package in progress | [EDITOR.md](EDITOR.md) · `editor-mac-5.8` |
+| Linux editor   | Build from source now · pre-built package in progress | [EDITOR.md](EDITOR.md) · `editor-linux-5.8` |
+| Windows editor | Build from source now · pre-built package in progress | [EDITOR.md](EDITOR.md) · `editor-win64-5.8` |
+
+- **Today — build from source:** follow **[EDITOR.md](EDITOR.md)** (macOS / Linux / Windows). Needs ~200 GB disk and a long first build, but it's always current.
+- **Coming — pre-built packages** (~30–42 GB each, plug-and-play): published to `ghcr.io/itpick/ut4-install:editor-<plat>-5.8` and split to `editor-<plat>-5.8` Releases. The direct download links will appear in the table above once they're built.
+
 ---
 
 ## Important: you cannot mix versions
