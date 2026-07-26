@@ -1,5 +1,5 @@
 <#
-  UT4 on Unreal Engine 5.8 — Windows (Win64) installer
+  UT4 on Unreal Engine 5.8 - Windows (Win64) installer
 
   Works either way:
     irm https://itpick.github.io/ut4-install/install.ps1 | iex
@@ -30,6 +30,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# Belt-and-suspenders: Windows PowerShell 5.1's default console codepage isn't
+# UTF-8, so nudge output to UTF-8. All printed strings are plain ASCII anyway.
+try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $Archive = "ut4-client-win64.tar.zst"
 $Exe     = "UnrealTournament.exe"
 $MapsTag = "maps-win-v1"           # existing release with the per-map paks
@@ -46,7 +49,7 @@ $tar = Get-Command tar -ErrorAction SilentlyContinue
 if (-not $tar) { Die "tar was not found. Windows 10 (1803+) and Windows 11 ship bsdtar; update Windows, or extract with 7-Zip." }
 
 Write-Host ""
-Say "UT4 on Unreal Engine 5.8 — Windows installer"
+Say "UT4 on Unreal Engine 5.8 - Windows installer"
 Write-Host "    Install dir: $InstallDir" -ForegroundColor DarkGray
 Write-Host "    Client src:  $DownloadBase" -ForegroundColor DarkGray
 Write-Host "    Maps:        $(if ($WantMaps) { "full set ($MapsTag)" } else { 'skipped (-NoMaps)' })" -ForegroundColor DarkGray
@@ -86,7 +89,7 @@ function Install-Client {
       }
     }
   }
-  if ($parts.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet — see the README for the manual (oras) install." }
+  if ($parts.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet - see the README for the manual (oras) install." }
   Ok "Fetched $($parts.Count) file(s)."
 
   $final = Join-Path $work $Archive
@@ -99,7 +102,7 @@ function Install-Client {
   }
 
   Say "Verifying archive ..."
-  if ((Get-Item $final).Length -lt 1MB) { Die "Downloaded archive is suspiciously small — the download likely failed. Re-run to retry." }
+  if ((Get-Item $final).Length -lt 1MB) { Die "Downloaded archive is suspiciously small - the download likely failed. Re-run to retry." }
   Ok "Archive present ($([math]::Round((Get-Item $final).Length/1GB,1)) GB)."
 
   Say "Extracting (~10 GB, give it a minute) ..."
@@ -114,11 +117,11 @@ function Install-Maps {
   if (-not $WantMaps) { Say "Skipping map paks (-NoMaps)."; return }
   $pakdir = Get-ChildItem -Path $InstallDir -Recurse -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match 'Content\\Paks$' } | Select-Object -First 1
-  if (-not $pakdir) { Warn "Couldn't find the client's Content\Paks dir — skipping maps."; return }
+  if (-not $pakdir) { Warn "Couldn't find the client's Content\Paks dir - skipping maps."; return }
 
   Say "Fetching the full map set ($MapsTag) ..."
   try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/tags/$MapsTag" -Headers @{ "User-Agent" = "ut4-install" } -UseBasicParsing }
-  catch { Warn "Couldn't reach the maps release — skipping."; return }
+  catch { Warn "Couldn't reach the maps release - skipping."; return }
 
   # Optional checksum manifest.
   $sums = $null
@@ -126,7 +129,7 @@ function Install-Maps {
   if ($sumAsset) { try { $sums = (Invoke-WebRequest -Uri $sumAsset.browser_download_url -UseBasicParsing).Content } catch {} }
 
   $paks = $rel.assets | Where-Object { $_.name -like '*.pak' }
-  if (-not $paks) { Warn "No .pak assets found in $MapsTag — skipping."; return }
+  if (-not $paks) { Warn "No .pak assets found in $MapsTag - skipping."; return }
 
   $i = 0; $total = $paks.Count
   foreach ($a in $paks) {

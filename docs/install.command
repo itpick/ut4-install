@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# UT4 on Unreal Engine 5.8 — macOS installer  (Universal: Intel + Apple Silicon)
+# UT4 on Unreal Engine 5.8 - macOS installer  (Universal: Intel + Apple Silicon)
 #
 # Works either way:
 #   Double-click this file in Finder.
@@ -8,14 +8,14 @@
 #
 # Downloads the macOS client (single tarball or split <2 GB parts) + the full
 # map set, clears quarantine, re-signs the app UNSANDBOXED (the sandbox breaks
-# mouse-look — see below), and launches it. Safe to re-run.
+# mouse-look - see below), and launches it. Safe to re-run.
 #
 # Flags:  --no-maps      skip the ~40 downloadable map paks
 #         --dir <path>   install location (default: ~/UnrealTournament58)
 #
 set -euo pipefail
 
-# ── config ─────────────────────────────────────────────────────────────────
+# -- config -----------------------------------------------------------------
 # TODO(url): point DOWNLOAD_BASE at the GitHub Release that hosts the CLIENT.
 # Once the macOS client is split + uploaded, this should be the release asset
 # base, e.g.  https://github.com/itpick/ut4-install/releases/download/client-mac-5.8
@@ -34,7 +34,7 @@ APP="UnrealTournament.app"
 # matches (you can move + fire but the view won't turn). No entitlements.
 BUNDLE_ID="com.itpick.UnrealTournament58"
 WANT_MAPS=1
-# ────────────────────────────────────────────────────────────────────────────
+# ----------------------------------------------------------------------------
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -48,9 +48,9 @@ done
 
 BLUE=$'\033[1;34m'; GREEN=$'\033[1;32m'; YELLOW=$'\033[1;33m'; RED=$'\033[1;31m'; DIM=$'\033[2m'; NC=$'\033[0m'
 say()  { printf '%s==>%s %s\n'  "$BLUE"  "$NC" "$*"; }
-ok()   { printf '%s✓%s %s\n'    "$GREEN" "$NC" "$*"; }
+ok()   { printf '%sOK%s %s\n'    "$GREEN" "$NC" "$*"; }
 warn() { printf '%s!%s %s\n'    "$YELLOW" "$NC" "$*"; }
-die()  { printf '%s✗ %s%s\n'    "$RED" "$*" "$NC" >&2; [ -e /dev/tty ] && { printf 'Press Return to close.' >/dev/tty; read -r _ </dev/tty || true; }; exit 1; }
+die()  { printf '%sX %s%s\n'    "$RED" "$*" "$NC" >&2; [ -e /dev/tty ] && { printf 'Press Return to close.' >/dev/tty; read -r _ </dev/tty || true; }; exit 1; }
 ask()  { local p="$1" d="$2" a=""; if [ -e /dev/tty ]; then printf '%s' "$p" >/dev/tty; IFS= read -r a </dev/tty || a=""; fi; printf '%s' "${a:-$d}"; }
 md5of(){ if command -v md5 >/dev/null; then md5 -q "$1"; else md5sum "$1" | awk '{print $1}'; fi; }
 
@@ -58,7 +58,7 @@ command -v curl >/dev/null || die "curl is required but not found."
 command -v tar  >/dev/null || die "tar is required but not found."
 
 echo
-say "UT4 on Unreal Engine 5.8 — macOS installer (Universal)"
+say "UT4 on Unreal Engine 5.8 - macOS installer (Universal)"
 echo "${DIM}    Install dir: ${INSTALL_DIR}${NC}"
 echo "${DIM}    Client src:  ${DOWNLOAD_BASE}${NC}"
 echo "${DIM}    Maps:        $([ "$WANT_MAPS" = 1 ] && echo "full set ($MAPS_TAG)" || echo "skipped (--no-maps)")${NC}"
@@ -93,7 +93,7 @@ install_client() {
     done
   fi
   [ ${#parts[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
-The client release may not be uploaded yet — see the README for the manual (oras) install."
+The client release may not be uploaded yet - see the README for the manual (oras) install."
   ok "Fetched ${#parts[@]} file(s)."
 
   local final="$work/$ARCHIVE"
@@ -117,18 +117,18 @@ install_maps() {
   [ "$WANT_MAPS" = 1 ] || { say "Skipping map paks (--no-maps)."; return 0; }
   local pakdir; pakdir=$(find "$INSTALL_DIR/$APP" -type d -path '*/Content/Paks' 2>/dev/null | head -1)
   [ -n "$pakdir" ] || pakdir=$(find "$INSTALL_DIR" -type d -path '*/Content/Paks' 2>/dev/null | head -1)
-  [ -n "$pakdir" ] || { warn "Couldn't find the app's Content/Paks dir — skipping maps."; return 0; }
+  [ -n "$pakdir" ] || { warn "Couldn't find the app's Content/Paks dir - skipping maps."; return 0; }
 
   say "Fetching the full map set ($MAPS_TAG) ..."
   local json; json=$(curl -fsSL "https://api.github.com/repos/$REPO/releases/tags/$MAPS_TAG") \
-    || { warn "Couldn't reach the maps release — skipping."; return 0; }
+    || { warn "Couldn't reach the maps release - skipping."; return 0; }
 
   local sums="" sums_url
   sums_url=$(printf '%s' "$json" | grep -oE '"browser_download_url": *"[^"]*(checksums|md5)[^"]*"' | sed -E 's/.*"(https[^"]+)".*/\1/' | head -1)
   [ -n "$sums_url" ] && sums=$(curl -fsSL "$sums_url" 2>/dev/null || true)
 
   local urls; urls=$(printf '%s' "$json" | grep -oE '"browser_download_url": *"[^"]*\.pak"' | sed -E 's/.*"(https[^"]+)".*/\1/')
-  [ -n "$urls" ] || { warn "No .pak assets found in $MAPS_TAG — skipping."; return 0; }
+  [ -n "$urls" ] || { warn "No .pak assets found in $MAPS_TAG - skipping."; return 0; }
 
   local total i=0; total=$(printf '%s\n' "$urls" | grep -c . || true)
   while IFS= read -r u; do
@@ -154,12 +154,12 @@ install_maps   # add maps BEFORE signing so the signature seals them in
 say "Clearing quarantine ..."
 xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP" 2>/dev/null || true
 
-# Re-sign UNSANDBOXED — this is the fix for dead mouse-look. No entitlements.
+# Re-sign UNSANDBOXED - this is the fix for dead mouse-look. No entitlements.
 say "Re-signing the app (unsandboxed) ..."
 codesign --force --deep --sign - --identifier "$BUNDLE_ID" "$INSTALL_DIR/$APP" \
-  || warn "codesign failed — if mouse-look is dead in a match, re-run this installer."
+  || warn "codesign failed - if mouse-look is dead in a match, re-run this installer."
 if codesign -d --entitlements - "$INSTALL_DIR/$APP" 2>/dev/null | grep -q app-sandbox; then
-  warn "The app is STILL sandboxed — mouse-look will be broken."
+  warn "The app is STILL sandboxed - mouse-look will be broken."
 else
   ok "App is unsandboxed (mouse-look will work)."
 fi
@@ -168,7 +168,7 @@ echo
 ok "Installed to $INSTALL_DIR/$APP"
 echo
 echo "${DIM}    LAN play needs Local Network access: approve the first-launch prompt, or${NC}"
-echo "${DIM}    System Settings → Privacy & Security → Local Network → Unreal Tournament${NC}"
+echo "${DIM}    System Settings -> Privacy & Security -> Local Network -> Unreal Tournament${NC}"
 echo
 say "Launching ..."
 open "$INSTALL_DIR/$APP"
