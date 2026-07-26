@@ -257,7 +257,15 @@ open UnrealTournament.app
 # Windows (Win64)
 oras pull ghcr.io/itpick/ut4-install:win64-5.8
 tar --zstd -xf ut4-client-win64.tar.zst
-.\UnrealTournament.exe</code></pre>
+.\UnrealTournament\Binaries\Win64\UnrealTournament-Win64-Shipping.exe</code></pre>
+
+      <div class="warn">
+        <strong>Windows "VC++ redist" / won't start:</strong> the one-click installer installs the
+        Visual C++ x64 runtime for you. Installing by hand, the top-level <code>UnrealTournament.exe</code>
+        is UE's launcher/prereq stub — if it errors asking for the "VC++ redist 2018-2022", install the
+        <a href="https://aka.ms/vs/17/release/vc_redist.x64.exe">VC++ x64 redistributable</a> and run the
+        real game exe under <code>UnrealTournament\Binaries\Win64\</code>.
+      </div>
 
       <div class="warn">
         <strong>macOS mouse-look note:</strong> the client must be signed <strong>without</strong> the app sandbox, or continuous mouse-look dies in matches (you can move &amp; fire, but the view won't turn). The <code>codesign … --identifier com.itpick.UnrealTournament58</code> line above re-signs it unsandboxed — that's exactly what the one-click installer does. Do <em>not</em> add an <code>--entitlements</code> file containing <code>app-sandbox</code>.
@@ -303,7 +311,8 @@ const DOWNLOAD = {
       run: [
         'Find <code>install.ps1</code> in your Downloads.',
         'Open PowerShell there and run: <code>powershell -ExecutionPolicy Bypass -File install.ps1</code>',
-        'If SmartScreen warns, choose <strong>More info → Run anyway</strong>.'
+        'If SmartScreen warns, choose <strong>More info → Run anyway</strong>.',
+        'It installs the VC++ x64 runtime the game needs and launches the correct exe (under <code>Binaries\\Win64</code>) for you.'
       ]
     },
     macos: {
