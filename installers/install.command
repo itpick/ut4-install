@@ -22,7 +22,7 @@ set -euo pipefail
 # Expected asset names:
 #     ut4-client-mac.tar.zst              (single file, if not split)
 #     ut4-client-mac.tar.zst.part-aa      ut4-client-mac.tar.zst.part-ab  ...
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://github.com/itpick/ut4-install/releases/latest/download}"  # TODO(url)
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://github.com/itpick/ut4-install/releases/download/client-mac-5.8}"
 
 ARCHIVE="ut4-client-mac.tar.zst"
 MAPS_TAG="maps-mac-v1"            # existing release with the per-map paks
