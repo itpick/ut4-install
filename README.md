@@ -370,7 +370,7 @@ Popular UT4 community mods are being ported to UE5.8. **None are finished yet** 
 
 | Mod | What it is | Status |
 |---|---|---|
-| [NetcodePlus](https://github.com/jmortley/NetcodePlusUT4) | Improved netcode (hit-reg, prediction, lag comp) + community game modes (ElimPlus, NCLeague, Wipeout…) | 🔨 In progress — porting the plugin to UE5.8 |
+| [NetcodePlus](https://github.com/jmortley/NetcodePlusUT4) ([UE5.8 fork](https://github.com/itpick/NetcodePlusUT4/tree/ue5.8-port)) | Improved netcode (hit-reg, prediction, lag comp) + community game modes (ElimPlus, NCLeague, Wipeout…) | 🔨 Compiles on UE5.8 — gameplay testing next |
 | Domination (+ MultiTeam) | The classic Domination game mode | 🔨 In progress |
 | ShockFix | Shock-rifle hit-registration fix | 📋 Planned |
 | Betrayal | Betrayal game mode | 📋 Planned |
