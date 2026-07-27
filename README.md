@@ -90,13 +90,16 @@ packages). The editor is only needed to open/edit content; to just play, use the
 
 | Artifact | Download size | Location |
 |---|---|---|
-| Linux client | 8.6 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:linux-5.8`](https://github.com/users/itpick/packages/container/package/ut4-install) |
-| macOS client (Universal — Intel + Apple Silicon) | 14 GB (≈16 GB extracted) | [`ghcr.io/itpick/ut4-install:mac-5.8`](https://github.com/users/itpick/packages/container/package/ut4-install) |
-| Windows client (Win64) | ~7.7 GB (≈10 GB extracted) | [`ghcr.io/itpick/ut4-install:win64-5.8`](https://github.com/users/itpick/packages/container/package/ut4-install) |
 | Dedicated server / hub (Linux) | ~2 GB | [`ghcr.io/itpick/ut4-install:server-linux-5.8`](https://github.com/users/itpick/packages/container/package/ut4-install) |
 | Per-map paks (Linux) | ~2.3 GB total (40 maps) | [Release `maps-linux-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-linux-v1) |
 | Per-map paks (macOS) | ~2 GB total (40 maps) | [Release `maps-mac-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-mac-v1) |
 | Per-map paks (Windows) | ~2.4 GB total (40 maps) | [Release `maps-win-v1`](https://github.com/itpick/ut4-install/releases/tag/maps-win-v1) |
+
+<!-- itpick: the per-OS ghcr CLIENT packages are private for now — restore these rows to the table above when they go public again:
+| Linux client | 8.6 GB (≈16 GB extracted) | ghcr.io/itpick/ut4-install:linux-5.8 |
+| macOS client (Universal — Intel + Apple Silicon) | 14 GB (≈16 GB extracted) | ghcr.io/itpick/ut4-install:mac-5.8 |
+| Windows client (Win64) | ~7.7 GB (≈10 GB extracted) | ghcr.io/itpick/ut4-install:win64-5.8 |
+-->
 
 The **dedicated server / hub** package is a single Linux server build; whether it runs as a
 lobby **hub** or a single **dedicated match** is just the launch command (see below).
