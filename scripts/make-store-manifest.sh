@@ -53,12 +53,22 @@ list_asset_names() {  # <release_id>
   done
 }
 
-upload_asset() {  # <release_id> <name> <filepath>
-  local rid="$1" name="$2" fp="$3" code
-  code=$(curl -s -o "$TMP/up.out" -w '%{http_code}' -X POST \
-    -H "Authorization: token $TOKEN" -H "Content-Type: application/octet-stream" \
-    --data-binary @"$fp" "$UP/releases/$rid/assets?name=$name")
-  [ "$code" = "201" ]
+upload_asset() {  # <release_id> <name> <filepath>  (stall-resilient + delete-then-retry)
+  local rid="$1" name="$2" fp="$3" code aid att
+  for att in 1 2 3 4 5 6; do
+    # --speed-limit/--speed-time abort a stalled connection (<50 KB/s for 30s) so we
+    # retry on a fresh socket instead of hanging forever (GitHub uploads can wedge).
+    code=$(curl -s -o "$TMP/up.out" -w '%{http_code}' -X POST \
+      --connect-timeout 30 --speed-limit 51200 --speed-time 30 \
+      -H "Authorization: token $TOKEN" -H "Content-Type: application/octet-stream" \
+      --data-binary @"$fp" "$UP/releases/$rid/assets?name=$name")
+    [ "$code" = "201" ] && return 0
+    # a stalled/failed POST can leave a partial 'starter' asset; delete it before retry
+    aid=$(GH "$API/releases/$rid/assets?per_page=100" | jq -r --arg n "$name" '.[]|select(.name==$n)|.id' | head -1)
+    [ -n "$aid" ] && GH -X DELETE "$API/releases/assets/$aid" >/dev/null
+    say "  retry $name (att $att, http=${code:-stall})"; sleep 3
+  done
+  return 1
 }
 
 say "publish: staged=$STAGE plat=$PLAT build=$BUILD"
@@ -66,9 +76,9 @@ STORE_ID=$(ensure_release "$STORE_TAG"); [ -n "$STORE_ID" ] || { echo "X could n
 say "store release $STORE_TAG id=$STORE_ID"
 
 # Set of blocks already in the store (skip re-upload = incremental).
-declare -A HAVE
-while IFS= read -r n; do [ -n "$n" ] && HAVE["$n"]=1; done < <(list_asset_names "$STORE_ID")
-say "store already holds ${#HAVE[@]} blocks"
+declare -A HAVE; nhave=0
+while IFS= read -r n; do [ -n "$n" ] && { HAVE["$n"]=1; nhave=$((nhave+1)); }; done < <(list_asset_names "$STORE_ID")
+say "store already holds $nhave blocks"
 
 MANIFEST="$TMP/manifest.json"
 : > "$TMP/files.ndjson"
