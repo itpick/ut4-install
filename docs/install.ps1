@@ -91,7 +91,8 @@ function Resolve-DownloadBase {
   $tags = @()
   try {
     $rels = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases?per_page=100" -Headers @{ "User-Agent" = "ut4-install" } -UseBasicParsing
-    $tags = @($rels | Where-Object { $_.tag_name -like "$ClientPrefix*" } | ForEach-Object { $_.tag_name })
+    # the content-addressed store (client-<plat>-store) is not a selectable build
+    $tags = @($rels | Where-Object { $_.tag_name -like "$ClientPrefix*" -and $_.tag_name -notmatch '-store$' } | ForEach-Object { $_.tag_name })
   } catch { }
   if ($tags.Count -eq 0) { return "" }
   $chosen = $tags[0]
@@ -109,6 +110,12 @@ if (-not $tar) { Die "tar was not found. Windows 10 (1803+) and Windows 11 ship 
 
 $DownloadBase = Resolve-DownloadBase
 if (-not $DownloadBase) { $DownloadBase = "https://github.com/$Repo/releases/download/${ClientPrefix}5.8" }
+
+# Content-addressed store wiring (incremental updates). $Plat from the client prefix;
+# $BuildTag is the resolved release tag. When the build publishes a manifest.json we
+# sync only changed files from client-<plat>-store; otherwise fall back to the tarball.
+$BuildTag = ($DownloadBase -split '/')[-1]
+$Plat     = ($ClientPrefix -replace '^client-','') -replace '-$',''
 
 Write-Host ""
 Say "UT4 on Unreal Engine 5.8 - Windows installer"
@@ -129,6 +136,24 @@ function Fetch([string]$url, [string]$dest) {
 }
 
 function Install-Client {
+  # Prefer incremental content-addressed sync when the build publishes a manifest.
+  # Downloads only files whose hash changed vs the installed manifest (fresh install
+  # pulls everything; an update pulls just the delta). Falls back to the full tarball
+  # if the manifest or the sync helper isn't reachable.
+  if (Url-Exists "$DownloadBase/manifest.json") {
+    Say "Incremental update available - syncing only changed files ..."
+    try {
+      $sctext = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/sync-client.ps1" -UseBasicParsing).Content
+      if ($sctext -is [byte[]]) { $sctext = [Text.Encoding]::UTF8.GetString($sctext) }
+      $sb = [ScriptBlock]::Create($sctext)
+      & $sb $Plat $BuildTag $InstallDir
+      Ok "Client up to date (incremental)."
+      return
+    } catch {
+      Warn "Incremental sync failed ($($_.Exception.Message)) - falling back to the full archive."
+    }
+  }
+
   if ((Test-Path $exePath) -and -not $Force) {
     Ok "Client already present at $InstallDir"
     $ans = Read-Host "Re-download and reinstall the client? [y/N]"
