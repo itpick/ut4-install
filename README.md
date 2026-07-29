@@ -7,7 +7,7 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
 | Built | 2026-07-26 |
-| Platforms | Linux ✅ · macOS ✅ · Windows ⚠️ — see **Current status** below |
+| Platforms | Linux ✅ · macOS ✅ · Windows ✅ — see **Current status** below |
 
 ---
 
@@ -21,7 +21,7 @@ What actually works from a **binary install** right now — updated as builds sh
 |---|---|---|---|
 | **Linux** | `curl -fsSL https://itpick.github.io/ut4-install/install.sh \| bash` | ✅ Working | Installs, launches, renders, signs in. |
 | **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | ✅ Working | Universal (Intel + Apple Silicon); renders + auto-login verified. Release re-uploaded and **verified** (download-back + `zstd -t`); the installer also self-heals corrupt/partial downloads + fetches parts in parallel. |
-| **Windows** (Win64) | `irm https://itpick.github.io/ut4-install/install.ps1 \| iex` | ⚠️ Installs; one crash | Downloads/installs fine (release archive verified intact), but **Basic Training crashes** on a corrupt cooked HUD asset (`bpHW_WeaponBar`) — [#24](https://github.com/itpick/ut4-install/issues/24). |
+| **Windows** (Win64) | `irm https://itpick.github.io/ut4-install/install.ps1 \| iex` | ✅ Working | Full rebuild shipped (verified-good `bpHW_WeaponBar`); the corrupt-cook crash — [#24](https://github.com/itpick/ut4-install/issues/24) — is fixed. The old release archive was made from an incomplete cook (~2.5 GB vs the correct ~7 GB); re-run the installer to pull the fixed build. |
 
 ### Test maps / modes
 
@@ -35,7 +35,7 @@ Current playtest state of the stock content. **✅** good · **🟡** playable w
 | FR-MeltDown | Blitz (FlagRun) | 🟡 | Glass + floors corrected; bots die when the 15s countdown ends — [#20](https://github.com/itpick/ut4-install/issues/20). |
 | (one CTF-style map) | CTF | 🟡 | Bots ride jump pads instead of grabbing the flag — map navmesh, [#21](https://github.com/itpick/ut4-install/issues/21). |
 | Siege maps | Siege | ❌ | No bots/monsters spawn — [#18](https://github.com/itpick/ut4-install/issues/18); monster textures missing — [#19](https://github.com/itpick/ut4-install/issues/19). |
-| TUT-* (Basic Training) | Training | 🟡 | "Lighting needs to be rebuilt" — [#15](https://github.com/itpick/ut4-install/issues/15); Windows crash — [#24](https://github.com/itpick/ut4-install/issues/24). |
+| TUT-* (Basic Training) | Training | 🟡 | "Lighting needs to be rebuilt" — [#15](https://github.com/itpick/ut4-install/issues/15). Windows crash — [#24](https://github.com/itpick/ut4-install/issues/24) — **fixed** in the current Win64 build. |
 
 ### Known bugs & fix status
 
@@ -46,7 +46,7 @@ Current playtest state of the stock content. **✅** good · **🟡** playable w
 | Weapon auto-switch broken — empty-ammo, ammo-pickup, `:loaded` gives wrong weapon — [#16](https://github.com/itpick/ut4-install/issues/16) | Weapons | 🟢 Ships next build (merged `6a11dc0`, compiles clean) |
 | FlagRun crash — Redeemer explosion at flag capture — [#17](https://github.com/itpick/ut4-install/issues/17) | Blitz | 🟢 Ships next build (null-guards merged, compiles clean) |
 | Siege — no bots/monsters spawn — [#18](https://github.com/itpick/ut4-install/issues/18) | Siege | 🟢 Ships next build (cook fix merged; needs a recook) |
-| Windows Basic Training crash — corrupt `bpHW_WeaponBar` — [#24](https://github.com/itpick/ut4-install/issues/24) | Windows / cook | 🔧 In progress — Windows cook env being set up for a recook |
+| Windows Basic Training crash — corrupt `bpHW_WeaponBar` — [#24](https://github.com/itpick/ut4-install/issues/24) | Windows / cook | 🟢 Fixed — full Win64 rebuild shipped (verified-good asset; old archive was an incomplete cook) |
 | FR-MeltDown — bots die after the countdown — [#20](https://github.com/itpick/ut4-install/issues/20) | Map | 🔴 Open — editor pass on spawns / kill volumes |
 | Bots ignore flag, ride jump pads — [#21](https://github.com/itpick/ut4-install/issues/21) | Map | 🔴 Open — map navmesh rebuild |
 | Siege monster textures missing — [#19](https://github.com/itpick/ut4-install/issues/19) | Content | 🔴 Open — per-asset triage |
