@@ -7,7 +7,51 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
 | Built | 2026-07-26 |
-| Platforms | Linux ✅ · macOS (Universal: Intel + Apple Silicon) ✅ · Windows ✅ |
+| Platforms | Linux ✅ · macOS 🔧 · Windows ⚠️ — see **Current status** below |
+
+---
+
+## 📊 Current status
+
+What actually works from a **binary install** right now — updated as builds ship. Found something? [Open an issue](https://github.com/itpick/ut4-install/issues).
+
+### Clients
+
+| Platform | One-line install | Status | Notes |
+|---|---|---|---|
+| **Linux** | `curl -fsSL https://itpick.github.io/ut4-install/install.sh \| bash` | ✅ Working | Installs, launches, renders, signs in. |
+| **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | 🔧 Re-uploading | The client itself is good (renders + auto-login verified), but the release archive was **corrupt** (a truncated upload part). A verified-good build is being re-uploaded; the installer also self-heals corrupt/partial downloads now. |
+| **Windows** (Win64) | `irm https://itpick.github.io/ut4-install/install.ps1 \| iex` | ⚠️ Installs; one crash | Downloads/installs fine (release archive verified intact), but **Basic Training crashes** on a corrupt cooked HUD asset (`bpHW_WeaponBar`) — [#24](https://github.com/itpick/ut4-install/issues/24). |
+
+### Test maps / modes
+
+Current playtest state of the stock content. **✅** good · **🟡** playable with issues · **❌** broken.
+
+| Map(s) | Mode | Status | Notes |
+|---|---|---|---|
+| DM-Chill · DM-Outpost23 · DM-BioTower | Deathmatch | ✅ | Verified: HUD, bots, weapons, pickups. |
+| CTF-Face · CTF-TitanPass | CTF | ✅ | Verified: flags, teams, scoring. |
+| FR-Fort | Blitz (FlagRun) | ✅ | Verified end-to-end. |
+| FR-MeltDown | Blitz (FlagRun) | 🟡 | Glass + floors corrected; bots die when the 15s countdown ends — [#20](https://github.com/itpick/ut4-install/issues/20). |
+| (one CTF-style map) | CTF | 🟡 | Bots ride jump pads instead of grabbing the flag — map navmesh, [#21](https://github.com/itpick/ut4-install/issues/21). |
+| Siege maps | Siege | ❌ | No bots/monsters spawn — [#18](https://github.com/itpick/ut4-install/issues/18); monster textures missing — [#19](https://github.com/itpick/ut4-install/issues/19). |
+| TUT-* (Basic Training) | Training | 🟡 | "Lighting needs to be rebuilt" — [#15](https://github.com/itpick/ut4-install/issues/15); Windows crash — [#24](https://github.com/itpick/ut4-install/issues/24). |
+
+### Known bugs & fix status
+
+**🟢 Ships next build** — fix merged & compile-verified, just needs the next binary · **🟠 Fix pending verification** — code fix written, not yet confirmed · **🔧 In progress** — actively being fixed · **🔴 Open** — no fix yet (needs investigation / map / content).
+
+| Bug | Area | Fix status |
+|---|---|---|
+| Weapon auto-switch broken — empty-ammo, ammo-pickup, `:loaded` gives wrong weapon — [#16](https://github.com/itpick/ut4-install/issues/16) | Weapons | 🟢 Ships next build (merged `6a11dc0`, compiles clean) |
+| FlagRun crash — Redeemer explosion at flag capture — [#17](https://github.com/itpick/ut4-install/issues/17) | Blitz | 🟢 Ships next build (null-guards merged, compiles clean) |
+| Siege — no bots/monsters spawn — [#18](https://github.com/itpick/ut4-install/issues/18) | Siege | 🟢 Ships next build (cook fix merged; needs a recook) |
+| Windows Basic Training crash — corrupt `bpHW_WeaponBar` — [#24](https://github.com/itpick/ut4-install/issues/24) | Windows / cook | 🔧 In progress — Windows cook env being set up for a recook |
+| FR-MeltDown — bots die after the countdown — [#20](https://github.com/itpick/ut4-install/issues/20) | Map | 🔴 Open — editor pass on spawns / kill volumes |
+| Bots ignore flag, ride jump pads — [#21](https://github.com/itpick/ut4-install/issues/21) | Map | 🔴 Open — map navmesh rebuild |
+| Siege monster textures missing — [#19](https://github.com/itpick/ut4-install/issues/19) | Content | 🔴 Open — per-asset triage |
+| Blitz doesn't filter energy packs — [#22](https://github.com/itpick/ut4-install/issues/22) | Blitz | 🔴 Open — needs editor repro |
+| Training "lighting needs rebuilt" — [#15](https://github.com/itpick/ut4-install/issues/15) | Content | 🔴 Open — GPU Lightmass rebake |
 
 ---
 
