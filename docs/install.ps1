@@ -9,22 +9,26 @@
   map set, verifies, extracts with bsdtar (ships in Win10/11), and launches it.
   Safe to re-run.
 
+  When more than one client build is published, the installer lists them and lets
+  you pick with the Up/Down arrows (Enter = latest). Parts download in parallel.
+
   This script is pipe-safe: it takes no positional args and does not rely on its
   own path. When piped through `iex`, set options via environment variables:
-    $env:UT_NO_MAPS = "1"          # skip the ~40 map paks
-    $env:UT_DIR     = "D:\Games\UT" # custom install dir
-  When run as a file you can instead pass -NoMaps / -InstallDir.
+    $env:UT_NO_MAPS       = "1"                # skip the ~40 map paks
+    $env:UT_DIR           = "D:\Games\UT"      # custom install dir
+    $env:UT_DOWNLOAD_BASE = "https://.../tag"  # pin a specific release, skip the picker
+  When run as a file you can instead pass -NoMaps / -InstallDir / -DownloadBase.
 #>
 
 [CmdletBinding()]
 param(
-  # TODO(url): WIRED for Windows -> the client-win64-5.8 release below. (The
-  # tarball parts are being uploaded to that fixed tag; the URL is safe to ship
-  # regardless of upload timing.) Change only if the release tag ever moves.
-  # Expected asset names:
+  # Empty by default: the installer discovers published client builds (release
+  # tags starting with $ClientPrefix) and lets you pick. Set this (or
+  # $env:UT_DOWNLOAD_BASE) to a release-download URL to pin one and skip the picker.
+  # Expected asset names at the chosen tag:
   #   ut4-client-win64.tar.zst            (single file, if not split)
   #   ut4-client-win64.tar.zst.part-aa    ut4-client-win64.tar.zst.part-ab  ...
-  [string]$DownloadBase = "https://github.com/itpick/ut4-install/releases/download/client-win64-5.8",  # TODO(url): wired for Windows
+  [string]$DownloadBase = $(if ($env:UT_DOWNLOAD_BASE) { $env:UT_DOWNLOAD_BASE } else { "" }),
   [string]$InstallDir   = $(if ($env:UT_DIR) { $env:UT_DIR } else { Join-Path $env:USERPROFILE "UnrealTournament58" }),
   [switch]$NoMaps,
   [switch]$Force
@@ -34,10 +38,11 @@ $ErrorActionPreference = "Stop"
 # Belt-and-suspenders: Windows PowerShell 5.1's default console codepage isn't
 # UTF-8, so nudge output to UTF-8. All printed strings are plain ASCII anyway.
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
-$Archive = "ut4-client-win64.tar.zst"
-$Exe     = "UnrealTournament.exe"
-$MapsTag = "maps-win-v1"           # existing release with the per-map paks
-$Repo    = "itpick/ut4-install"
+$Archive      = "ut4-client-win64.tar.zst"
+$Exe          = "UnrealTournament.exe"
+$MapsTag      = "maps-win-v1"           # existing release with the per-map paks
+$Repo         = "itpick/ut4-install"
+$ClientPrefix = "client-win64-"         # release tags for Win64 client builds
 if ($env:UT_NO_MAPS -eq "1") { $NoMaps = $true }
 $WantMaps = -not $NoMaps
 
@@ -46,8 +51,64 @@ function Ok   ($m) { Write-Host "OK  $m"  -ForegroundColor Green }
 function Warn ($m) { Write-Host "!   $m"  -ForegroundColor Yellow }
 function Die  ($m) { Write-Host "X   $m"  -ForegroundColor Red; if ([Environment]::UserInteractive) { try { Read-Host "Press Enter to close" } catch {} }; exit 1 }
 
+# Arrow-key selector. Up/Down to move, Enter to choose. Returns the selected item.
+# Falls back to the first item (the latest build) when there's no interactive
+# console - e.g. under automation or a host without ReadKey/cursor support.
+function Menu-Pick {
+  param([string[]]$Options)
+  $n = $Options.Count
+  if ($n -le 1) { return $(if ($n -eq 1) { $Options[0] } else { "" }) }
+  try {
+    if ([Console]::IsInputRedirected) { return $Options[0] }
+    $sel = 0
+    $render = {
+      for ($i = 0; $i -lt $n; $i++) {
+        $line = if ($i -eq $sel) { "  > $($Options[$i])" } else { "    $($Options[$i])" }
+        $pad  = ' ' * [Math]::Max(0, [Console]::WindowWidth - 1 - $line.Length)
+        if ($i -eq $sel) { Write-Host ($line + $pad) -ForegroundColor Cyan }
+        else             { Write-Host ($line + $pad) }
+      }
+    }
+    & $render
+    while ($true) {
+      $key = [Console]::ReadKey($true)
+      if     ($key.Key -eq 'UpArrow')   { $sel = ($sel - 1 + $n) % $n }
+      elseif ($key.Key -eq 'DownArrow') { $sel = ($sel + 1) % $n }
+      elseif ($key.Key -eq 'Enter')     { break }
+      else   { continue }
+      [Console]::SetCursorPosition(0, [Console]::CursorTop - $n)
+      & $render
+    }
+    return $Options[$sel]
+  } catch { return $Options[0] }
+}
+
+# Resolve the release-download base: an explicit -DownloadBase / env override wins;
+# otherwise list published client builds (tags starting with $ClientPrefix, newest
+# first) and let the user pick. Default (and the <2-builds case) is the latest.
+function Resolve-DownloadBase {
+  if ($DownloadBase) { return $DownloadBase }
+  $tags = @()
+  try {
+    $rels = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases?per_page=100" -Headers @{ "User-Agent" = "ut4-install" } -UseBasicParsing
+    $tags = @($rels | Where-Object { $_.tag_name -like "$ClientPrefix*" } | ForEach-Object { $_.tag_name })
+  } catch { }
+  if ($tags.Count -eq 0) { return "" }
+  $chosen = $tags[0]
+  if ($tags.Count -gt 1) {
+    Write-Host "Select a build (Up/Down, Enter for latest):" -ForegroundColor Blue
+    $labels = for ($i = 0; $i -lt $tags.Count; $i++) { if ($i -eq 0) { "$($tags[$i])  (latest)" } else { $tags[$i] } }
+    $picked = Menu-Pick -Options @($labels)
+    $chosen = ($picked -replace '  \(latest\)$','')
+  }
+  return "https://github.com/$Repo/releases/download/$chosen"
+}
+
 $tar = Get-Command tar -ErrorAction SilentlyContinue
 if (-not $tar) { Die "tar was not found. Windows 10 (1803+) and Windows 11 ship bsdtar; update Windows, or extract with 7-Zip." }
+
+$DownloadBase = Resolve-DownloadBase
+if (-not $DownloadBase) { $DownloadBase = "https://github.com/$Repo/releases/download/${ClientPrefix}5.8" }
 
 Write-Host ""
 Say "UT4 on Unreal Engine 5.8 - Windows installer"
@@ -75,36 +136,79 @@ function Install-Client {
   }
   $work = Join-Path $InstallDir ".download"
   New-Item -ItemType Directory -Force -Path $work | Out-Null
+  $final = Join-Path $work $Archive
+  $curl  = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
 
-  Say "Locating client parts ..."
-  $parts = @()
-  if (Url-Exists "$DownloadBase/$Archive") {
-    $dest = Join-Path $work $Archive; Fetch "$DownloadBase/$Archive" $dest; $parts += $dest
-  } else {
-    $letters = [char[]](97..122)
-    :outer foreach ($c1 in $letters) {
-      foreach ($c2 in $letters) {
-        $suffix = "part-$c1$c2"; $url = "$DownloadBase/$Archive.$suffix"
-        if (Url-Exists $url) { $dest = Join-Path $work "$Archive.$suffix"; Fetch $url $dest; $parts += $dest }
-        else { break outer }
+  # Locate -> download (parallel) -> join -> integrity-check, with one clean-retry.
+  # A stale/partial cached part (curl -C - resumes a full-size stale file and never
+  # refreshes it, e.g. after a re-upload) is purged and re-fetched fresh, once.
+  for ($attempt = 1; $attempt -le 2; $attempt++) {
+    Say "Locating client parts ..."
+    $suffixes = @()
+    if (Url-Exists "$DownloadBase/$Archive") {
+      $suffixes = @("")
+    } else {
+      $letters = [char[]](97..122)
+      foreach ($c1 in $letters) {
+        $gap = $false
+        foreach ($c2 in $letters) {
+          if (Url-Exists "$DownloadBase/$Archive.part-$c1$c2") { $suffixes += "part-$c1$c2" }
+          else { $gap = $true; break }
+        }
+        if ($gap) { break }
       }
     }
-  }
-  if ($parts.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet - see the README for the manual (oras) install." }
-  Ok "Fetched $($parts.Count) file(s)."
+    if ($suffixes.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet - see the README for the manual (oras) install." }
 
-  $final = Join-Path $work $Archive
-  if ($parts.Count -gt 1) {
-    Say "Joining $($parts.Count) parts ..."
-    $out = [System.IO.File]::Create("$final.joined")
-    try { foreach ($p in $parts) { $in = [System.IO.File]::OpenRead($p); try { $in.CopyTo($out) } finally { $in.Close() } } }
-    finally { $out.Close() }
-    Move-Item -Force "$final.joined" $final
-  }
+    Say "Downloading $($suffixes.Count) part(s) in parallel ..."
+    $parts = @()
+    if ($curl) {
+      $procs = @()
+      foreach ($s in $suffixes) {
+        if ($s -eq "") { $out = $final; $url = "$DownloadBase/$Archive" }
+        else           { $out = Join-Path $work "$Archive.$s"; $url = "$DownloadBase/$Archive.$s" }
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName        = $curl
+        $psi.Arguments       = "-fL --retry 3 --retry-delay 2 -C - -o `"$out`" `"$url`""
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow  = $true
+        $procs += [System.Diagnostics.Process]::Start($psi)
+        $parts += $out
+      }
+      $dlfail = $false
+      foreach ($p in $procs) { $p.WaitForExit(); if ($p.ExitCode -ne 0) { $dlfail = $true } }
+      if ($dlfail) { Die "One or more parts failed to download - re-run to resume." }
+    } else {
+      foreach ($s in $suffixes) {
+        if ($s -eq "") { $out = $final; $url = "$DownloadBase/$Archive" }
+        else           { $out = Join-Path $work "$Archive.$s"; $url = "$DownloadBase/$Archive.$s" }
+        Fetch $url $out; $parts += $out
+      }
+    }
+    Ok "Fetched $($parts.Count) file(s)."
 
-  Say "Verifying archive ..."
-  if ((Get-Item $final).Length -lt 1MB) { Die "Downloaded archive is suspiciously small - the download likely failed. Re-run to retry." }
-  Ok "Archive present ($([math]::Round((Get-Item $final).Length/1GB,1)) GB)."
+    if ($parts.Count -gt 1) {
+      Say "Joining $($parts.Count) parts ..."
+      $sorted = $parts | Sort-Object
+      $out = [System.IO.File]::Create("$final.joined")
+      try { foreach ($p in $sorted) { $in = [System.IO.File]::OpenRead($p); try { $in.CopyTo($out) } finally { $in.Close() } } }
+      finally { $out.Close() }
+      Move-Item -Force "$final.joined" $final
+    }
+
+    Say "Verifying archive (integrity) ..."
+    if ((Get-Item $final).Length -lt 1MB) { $bad = $true }
+    else { & tar --zstd -tf $final > $null 2>&1; $bad = ($LASTEXITCODE -ne 0) }
+    if (-not $bad) { Ok "Archive looks good ($([math]::Round((Get-Item $final).Length/1GB,1)) GB)."; break }
+
+    if ($attempt -eq 1) {
+      Warn "Archive failed integrity check - purging cached parts and re-downloading fresh ..."
+      Remove-Item -Force -ErrorAction SilentlyContinue $final, "$final.joined"
+      Get-ChildItem -Path $work -Filter "$Archive.part-*" -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+    } else {
+      Die "Archive still failed integrity check after a clean re-download. Please try again later, or use the manual (oras) install in the README."
+    }
+  }
 
   Say "Extracting (~10 GB, give it a minute) ..."
   & tar --zstd -xf $final -C $InstallDir
