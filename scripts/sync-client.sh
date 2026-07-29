@@ -32,12 +32,12 @@ say "manifest lists $NF files"
 
 # 2) diff vs the installed manifest -> need.tsv (path \t sha \t blocks-csv)
 : > "$TMP/need.tsv"
-while IFS="$TAB" read -r path sha size blocks; do
+while IFS="$TAB" read -r path sha size blocks xbit; do
   [ -n "$path" ] || continue
   osha=""
   [ -f "$LOCAL" ] && osha=$(awk -F"$TAB" -v p="$path" '$1==p{print $2; exit}' "$LOCAL")
   if [ "$osha" = "$sha" ] && [ -e "$DEST/$path" ]; then continue; fi
-  printf '%s\t%s\t%s\n' "$path" "$sha" "$blocks" >> "$TMP/need.tsv"
+  printf '%s\t%s\t%s\t%s\n' "$path" "$sha" "$blocks" "${xbit:-0}" >> "$TMP/need.tsv"
 done < "$TMP/manifest.tsv"
 NEED=$(grep -c . "$TMP/need.tsv" 2>/dev/null | tr -d ' '); [ -n "$NEED" ] || NEED=0
 say "need to update $NEED/$NF files"
@@ -62,8 +62,8 @@ if [ "$NEED" -gt 0 ]; then
   miss=0; while IFS= read -r b; do [ -s "$CACHE/$b" ] || { echo "X block missing: $b"; miss=1; }; done < "$TMP/blocks.txt"
   [ "$miss" = 0 ] || { echo "X some blocks failed to download - re-run to resume"; exit 1; }
 
-  # 5) assemble each file from its blocks (in order) and verify sha256
-  while IFS="$TAB" read -r path sha blocks; do
+  # 5) assemble each file from its blocks (in order), verify sha256, restore +x
+  while IFS="$TAB" read -r path sha blocks xbit; do
     [ -n "$path" ] || continue
     mkdir -p "$DEST/$(dirname "$path")"
     set --; oldIFS="$IFS"; IFS=','; for b in $blocks; do set -- "$@" "$CACHE/$b"; done; IFS="$oldIFS"
@@ -71,6 +71,7 @@ if [ "$NEED" -gt 0 ]; then
     got=$(sha256of "$DEST/$path.uttmp")
     if [ "$got" != "$sha" ]; then echo "X sha mismatch: $path"; rm -f "$DEST/$path.uttmp"; exit 1; fi
     mv -f "$DEST/$path.uttmp" "$DEST/$path"
+    [ "$xbit" = 1 ] && chmod +x "$DEST/$path"   # store holds content only - restore exec bit
   done < "$TMP/need.tsv"
   say "assembled + verified $NEED files"
 fi
