@@ -145,7 +145,7 @@ install_client() {
   # It downloads only files whose hash changed vs the installed manifest; a fresh
   # install pulls everything, an update pulls just the delta. Falls back to the full
   # tarball if the manifest or the sync helper isn't reachable.
-  if http_ok "$DOWNLOAD_BASE/manifest.json"; then
+  if http_ok "$DOWNLOAD_BASE/manifest.tsv"; then
     say "Incremental update available - syncing only changed files ..."
     local sc="$INSTALL_DIR/.sync-client.sh"
     if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/sync-client.sh" -o "$sc" 2>/dev/null; then
