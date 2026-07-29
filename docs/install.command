@@ -79,29 +79,42 @@ install_client() {
   fi
 
   local work="$INSTALL_DIR/.download"; mkdir -p "$work"
-  say "Locating client parts ..."
-  local parts=()
-  if http_ok "$DOWNLOAD_BASE/$ARCHIVE"; then
-    fetch "$DOWNLOAD_BASE/$ARCHIVE" "$work/$ARCHIVE"; parts=("$work/$ARCHIVE")
-  else
-    local c1 c2
-    for c1 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
-      for c2 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
-        local suffix="part-${c1}${c2}" url="$DOWNLOAD_BASE/$ARCHIVE.part-${c1}${c2}"
-        if http_ok "$url"; then fetch "$url" "$work/$ARCHIVE.$suffix"; parts+=("$work/$ARCHIVE.$suffix"); else break 2; fi
-      done
-    done
-  fi
-  [ ${#parts[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
-The client release may not be uploaded yet - see the README for the manual (oras) install."
-  ok "Fetched ${#parts[@]} file(s)."
-
   local final="$work/$ARCHIVE"
-  if [ ${#parts[@]} -gt 1 ]; then say "Joining ${#parts[@]} parts ..."; cat "${parts[@]}" > "$final.joined"; mv "$final.joined" "$final"; fi
+  local attempt parts
+  for attempt in 1 2; do
+    say "Locating client parts ..."
+    parts=()
+    if http_ok "$DOWNLOAD_BASE/$ARCHIVE"; then
+      fetch "$DOWNLOAD_BASE/$ARCHIVE" "$work/$ARCHIVE"; parts=("$work/$ARCHIVE")
+    else
+      local c1 c2
+      for c1 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
+        for c2 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
+          local suffix="part-${c1}${c2}" url="$DOWNLOAD_BASE/$ARCHIVE.part-${c1}${c2}"
+          if http_ok "$url"; then fetch "$url" "$work/$ARCHIVE.$suffix"; parts+=("$work/$ARCHIVE.$suffix"); else break 2; fi
+        done
+      done
+    fi
+    [ ${#parts[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
+The client release may not be uploaded yet - see the README for the manual (oras) install."
+    ok "Fetched ${#parts[@]} file(s)."
 
-  say "Verifying archive ..."
-  command -v zstd >/dev/null && { zstd -t "$final" >/dev/null 2>&1 || die "Archive failed integrity check. Re-run to re-download."; }
-  ok "Archive looks good."
+    if [ ${#parts[@]} -gt 1 ]; then say "Joining ${#parts[@]} parts ..."; cat "${parts[@]}" > "$final.joined"; mv "$final.joined" "$final"; fi
+
+    say "Verifying archive ..."
+    if ! command -v zstd >/dev/null || zstd -t "$final" >/dev/null 2>&1; then ok "Archive looks good."; break; fi
+
+    # Integrity failed - almost always stale/partial cached parts from an earlier
+    # run: curl -C - resumes a full-size stale file and never refreshes it (e.g. after
+    # the release was re-uploaded). Purge everything and re-download fresh, once.
+    if [ "$attempt" = 1 ]; then
+      warn "Archive failed integrity check - purging cached parts and re-downloading fresh ..."
+      rm -f "$work/$ARCHIVE" "$work/$ARCHIVE".part-* "$final.joined"
+    else
+      die "Archive still failed integrity check after a clean re-download.
+Please try again later, or use the manual (oras) install in the README."
+    fi
+  done
 
   say "Extracting (~16 GB, give it a minute) ..."
   if ! tar -I zstd -xf "$final" -C "$INSTALL_DIR" 2>/dev/null; then
