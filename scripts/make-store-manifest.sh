@@ -97,24 +97,31 @@ while IFS= read -r -d '' f; do
       else echo "X upload failed: $bname"; exit 1; fi
     fi
   fi
-  # emit one manifest file record (blocks as JSON array)
+  # emit one manifest file record (blocks as JSON array) - human/debug format
   jq -cn --arg p "$rel" --arg s "$sha" --argjson z "$size" \
      --argjson b "$(printf '%s\n' "${blocks[@]}" | jq -R . | jq -cs .)" \
      '{path:$p, sha256:$s, size:$z, blocks:$b}' >> "$TMP/files.ndjson"
+  # and a jq-free TSV row (path \t sha256 \t size \t block1,block2,...) - this is what
+  # the installers parse, so they need no jq (stock macOS ships none).
+  printf '%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$(IFS=,; printf '%s' "${blocks[*]}")" >> "$TMP/files.tsv"
 done < <(find "$STAGE" -type f ! -name '*.pdb' -print0 | sort -z)
 
 say "files=$NFILES  new blocks uploaded=$NEW  reused=$SKIP"
 
-# Assemble manifest.json
+# Assemble manifest.json (human/debug) and manifest.tsv (what installers parse)
 jq -s --arg plat "$PLAT" --arg build "$BUILD" --arg store "$STORE_TAG" \
    '{schema:1, platform:$plat, build:$build, store_tag:$store, files:.}' \
    "$TMP/files.ndjson" > "$MANIFEST"
+cp -f "$TMP/files.tsv" "$TMP/manifest.tsv"
 MSIZE=$(stat -c%s "$MANIFEST")
-say "manifest.json = $MSIZE bytes, $(jq '.files|length' "$MANIFEST") files"
+say "manifest.json = $MSIZE bytes; manifest.tsv = $(wc -l < "$TMP/manifest.tsv" | tr -d ' ') files"
 
-# Publish manifest to the per-build release (replace if present).
+# Publish both manifests to the per-build release (replace if present).
 BUILD_ID=$(ensure_release "$BUILD_TAG"); [ -n "$BUILD_ID" ] || { echo "X could not ensure build release"; exit 1; }
-old=$(GH "$API/releases/$BUILD_ID/assets?per_page=100" | jq -r '.[]|select(.name=="manifest.json")|.id')
-[ -n "$old" ] && GH -X DELETE "$API/releases/assets/$old" >/dev/null
-upload_asset "$BUILD_ID" "manifest.json" "$MANIFEST" || { echo "X manifest upload failed"; exit 1; }
-say "PUBLISH-OK $BUILD_TAG (manifest.json) -> store $STORE_TAG"
+for name in manifest.json manifest.tsv; do
+  old=$(GH "$API/releases/$BUILD_ID/assets?per_page=100" | jq -r --arg n "$name" '.[]|select(.name==$n)|.id')
+  [ -n "$old" ] && GH -X DELETE "$API/releases/assets/$old" >/dev/null
+done
+upload_asset "$BUILD_ID" "manifest.json" "$MANIFEST"          || { echo "X manifest.json upload failed"; exit 1; }
+upload_asset "$BUILD_ID" "manifest.tsv"  "$TMP/manifest.tsv"  || { echo "X manifest.tsv upload failed";  exit 1; }
+say "PUBLISH-OK $BUILD_TAG (manifest.json + manifest.tsv) -> store $STORE_TAG"
