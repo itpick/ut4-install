@@ -27,6 +27,9 @@ TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 
 GH()  { curl -s -H "Authorization: token $TOKEN" "$@"; }
 say() { echo "[$(date +%T)] $*"; }
+# portable helpers (works on Linux GNU coreutils AND macOS BSD tools)
+fsize()    { stat -c%s "$1" 2>/dev/null || stat -f%z "$1"; }
+sha256of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
 
 [ -d "$STAGE" ] || { echo "X no staged dir: $STAGE"; exit 1; }
 command -v jq >/dev/null || { echo "X jq required"; exit 1; }
@@ -72,12 +75,12 @@ MANIFEST="$TMP/manifest.json"
 NEW=0; SKIP=0; NFILES=0
 
 # Walk files (exclude *.pdb), deterministic order.
-while IFS= read -r -d '' f; do
+while IFS= read -r f; do
   rel="${f#"$STAGE"/}"
   [ -n "$PREFIX" ] && rel="$PREFIX/$rel"
   NFILES=$((NFILES+1))
-  sha=$(sha256sum "$f" | cut -d' ' -f1)
-  size=$(stat -c%s "$f")
+  sha=$(sha256of "$f")
+  size=$(fsize "$f")
   blocks=()
   if [ "$size" -gt "$SPLIT" ]; then
     # split into <sha>.part-aa ...; upload the missing ones.
@@ -110,7 +113,7 @@ while IFS= read -r -d '' f; do
   # and a jq-free TSV row (path \t sha256 \t size \t block1,block2,...) - this is what
   # the installers parse, so they need no jq (stock macOS ships none).
   printf '%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$(IFS=,; printf '%s' "${blocks[*]}")" >> "$TMP/files.tsv"
-done < <(find "$STAGE" -type f ! -name '*.pdb' -print0 | sort -z)
+done < <(find "$STAGE" -type f ! -name '*.pdb' | LC_ALL=C sort)   # newline-delimited: portable (macOS sort lacks -z); UE paths have no newlines
 
 say "files=$NFILES  new blocks uploaded=$NEW  reused=$SKIP"
 
@@ -119,7 +122,7 @@ jq -s --arg plat "$PLAT" --arg build "$BUILD" --arg store "$STORE_TAG" \
    '{schema:1, platform:$plat, build:$build, store_tag:$store, files:.}' \
    "$TMP/files.ndjson" > "$MANIFEST"
 cp -f "$TMP/files.tsv" "$TMP/manifest.tsv"
-MSIZE=$(stat -c%s "$MANIFEST")
+MSIZE=$(fsize "$MANIFEST")
 say "manifest.json = $MSIZE bytes; manifest.tsv = $(wc -l < "$TMP/manifest.tsv" | tr -d ' ') files"
 
 # Publish both manifests to the per-build release (replace if present).
