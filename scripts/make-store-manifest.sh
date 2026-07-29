@@ -11,8 +11,13 @@
 # exist in the store). Requires: bash, jq, curl, sha256sum, split. Token in ~/.ghcr_token
 set -u
 STAGE="${1:?staged_dir}"; PLAT="${2:?platform}"; BUILD="${3:?build_label}"
+# Optional 4th arg: a path prefix prepended to every manifest path (files are still
+# read from STAGE). Use it so manifest paths match where the installer writes them -
+# e.g. Linux wraps the client in LinuxNoEditor/, so pass PREFIX=LinuxNoEditor.
+PREFIX="${4:-}"
 REPO=itpick/ut4-install
-TOKEN=$(cat ~/.ghcr_token)
+TOKEN="${UT_GH_TOKEN:-$(cat ~/.ghcr_token 2>/dev/null)}"
+[ -n "$TOKEN" ] || { echo "X no token (set UT_GH_TOKEN or ~/.ghcr_token)"; exit 1; }
 STORE_TAG="client-${PLAT}-store"
 BUILD_TAG="client-${PLAT}-${BUILD}"
 SPLIT=${UT_SPLIT:-1992294400}   # 1900 MiB, < GitHub's 2 GB asset cap (override for tests)
@@ -69,6 +74,7 @@ NEW=0; SKIP=0; NFILES=0
 # Walk files (exclude *.pdb), deterministic order.
 while IFS= read -r -d '' f; do
   rel="${f#"$STAGE"/}"
+  [ -n "$PREFIX" ] && rel="$PREFIX/$rel"
   NFILES=$((NFILES+1))
   sha=$(sha256sum "$f" | cut -d' ' -f1)
   size=$(stat -c%s "$f")
