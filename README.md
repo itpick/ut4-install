@@ -7,7 +7,7 @@ Unofficial port of **Unreal Tournament (2017)** from Unreal Engine 4.15 to **Unr
 | Engine | Unreal Engine 5.8.0 |
 | Build | `55116800` |
 | Built | 2026-07-26 |
-| Platforms | Linux ✅ · macOS 🔧 · Windows ⚠️ — see **Current status** below |
+| Platforms | Linux ✅ · macOS ✅ · Windows ⚠️ — see **Current status** below |
 
 ---
 
@@ -20,7 +20,7 @@ What actually works from a **binary install** right now — updated as builds sh
 | Platform | One-line install | Status | Notes |
 |---|---|---|---|
 | **Linux** | `curl -fsSL https://itpick.github.io/ut4-install/install.sh \| bash` | ✅ Working | Installs, launches, renders, signs in. |
-| **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | 🔧 Re-uploading | The client itself is good (renders + auto-login verified), but the release archive was **corrupt** (a truncated upload part). A verified-good build is being re-uploaded; the installer also self-heals corrupt/partial downloads now. |
+| **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | ✅ Working | Universal (Intel + Apple Silicon); renders + auto-login verified. Release re-uploaded and **verified** (download-back + `zstd -t`); the installer also self-heals corrupt/partial downloads + fetches parts in parallel. |
 | **Windows** (Win64) | `irm https://itpick.github.io/ut4-install/install.ps1 \| iex` | ⚠️ Installs; one crash | Downloads/installs fine (release archive verified intact), but **Basic Training crashes** on a corrupt cooked HUD asset (`bpHW_WeaponBar`) — [#24](https://github.com/itpick/ut4-install/issues/24). |
 
 ### Test maps / modes
