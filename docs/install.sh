@@ -21,8 +21,10 @@ set -euo pipefail
 # Expected asset names:
 #     ut4-client-linux.tar.zst              (single file, if not split)
 #     ut4-client-linux.tar.zst.part-aa      ut4-client-linux.tar.zst.part-ab  ...
-DOWNLOAD_BASE="${DOWNLOAD_BASE:-https://github.com/itpick/ut4-install/releases/download/client-linux-5.8}"
-
+# If DOWNLOAD_BASE is set in the environment it forces a specific release; otherwise
+# the installer lists the available client builds and lets you pick (default = latest).
+DOWNLOAD_BASE="${DOWNLOAD_BASE:-}"
+CLIENT_PREFIX="client-linux-"     # release tags for Linux client builds
 ARCHIVE="ut4-client-linux.tar.zst"
 MAPS_TAG="maps-linux-v1"          # existing release with the per-map paks
 REPO="itpick/ut4-install"
@@ -54,6 +56,55 @@ die()  { printf '%sX %s%s\n'    "$RED" "$*" "$NC" >&2; exit 1; }
 ask()  { local p="$1" d="$2" a=""; if [ -e /dev/tty ]; then printf '%s' "$p" >/dev/tty; IFS= read -r a </dev/tty || a=""; fi; printf '%s' "${a:-$d}"; }
 md5of(){ if command -v md5sum >/dev/null; then md5sum "$1" | awk '{print $1}'; else md5 -q "$1"; fi; }
 
+# Arrow-key selector over /dev/tty. Up/Down to move, Enter to choose. Echoes the
+# selected item; falls back to the first item when there's no controlling terminal.
+menu_pick() {
+  local opts=("$@") n=$# sel=0 k rest i
+  [ -e /dev/tty ] || { printf '%s' "${opts[0]}"; return; }
+  printf '\033[?25l' >/dev/tty
+  for ((i=0;i<n;i++)); do
+    if [ "$i" -eq "$sel" ]; then printf '  \033[1;36m> %s\033[0m\n' "${opts[$i]}" >/dev/tty
+    else printf '    %s\n' "${opts[$i]}" >/dev/tty; fi
+  done
+  while IFS= read -rsn1 k </dev/tty; do
+    [ -z "$k" ] && break
+    if [ "$k" = $'\033' ]; then IFS= read -rsn2 -t 0.2 rest </dev/tty || rest=""
+      case "$rest" in '[A') sel=$(((sel-1+n)%n));; '[B') sel=$(((sel+1)%n));; esac; fi
+    printf '\033[%dA' "$n" >/dev/tty
+    for ((i=0;i<n;i++)); do
+      if [ "$i" -eq "$sel" ]; then printf '\033[2K  \033[1;36m> %s\033[0m\n' "${opts[$i]}" >/dev/tty
+      else printf '\033[2K    %s\n' "${opts[$i]}" >/dev/tty; fi
+    done
+  done
+  printf '\033[?25h' >/dev/tty
+  printf '%s' "${opts[$sel]}"
+}
+
+# Resolve DOWNLOAD_BASE: explicit env override wins; else list client builds
+# (release tags matching $CLIENT_PREFIX, newest first) and let the user pick.
+resolve_download_base() {
+  [ -n "$DOWNLOAD_BASE" ] && { echo "$DOWNLOAD_BASE"; return; }
+  local tags latest n
+  tags=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null \
+        | grep -oE '"tag_name": *"'"$CLIENT_PREFIX"'[^"]*"' | sed -E 's/.*"([^"]+)".*/\1/')
+  latest=$(printf '%s\n' "$tags" | sed -n '1p')
+  [ -n "$latest" ] || { echo ""; return; }
+  n=$(printf '%s\n' "$tags" | grep -c .)
+  local chosen="$latest"
+  if [ "$n" -gt 1 ] && [ -e /dev/tty ]; then
+    printf '%sSelect a build%s (Up/Down, Enter for latest):\n' "$BLUE" "$NC" >/dev/tty
+    local labels=() first=1 t
+    while IFS= read -r t; do [ -z "$t" ] && continue
+      if [ "$first" = 1 ]; then labels+=("$t  (latest)"); first=0; else labels+=("$t"); fi
+    done <<TAGS
+$tags
+TAGS
+    local picked; picked=$(menu_pick "${labels[@]}")
+    chosen=$(printf '%s' "$picked" | sed -E 's/  \(latest\)$//')
+  fi
+  echo "https://github.com/$REPO/releases/download/$chosen"
+}
+
 # Guard against a macOS user piping the Linux script by mistake.
 if [ "$(uname -s)" = "Darwin" ]; then
   die "This is the Linux installer. On macOS use:
@@ -65,6 +116,9 @@ command -v tar  >/dev/null || die "tar is required but not found."
 if ! tar --help 2>/dev/null | grep -q -- '-I' && ! command -v zstd >/dev/null; then
   die "Need GNU tar (for 'tar -I zstd') or the 'zstd' tool. Install zstd and re-run."
 fi
+
+DOWNLOAD_BASE="$(resolve_download_base)"
+[ -n "$DOWNLOAD_BASE" ] || DOWNLOAD_BASE="https://github.com/$REPO/releases/download/${CLIENT_PREFIX}5.8"
 
 echo
 say "UT4 on Unreal Engine 5.8 - Linux installer"
@@ -88,29 +142,50 @@ install_client() {
   fi
 
   local work="$INSTALL_DIR/.download"; mkdir -p "$work"
-  say "Locating client parts ..."
-  local parts=()
-  if http_ok "$DOWNLOAD_BASE/$ARCHIVE"; then
-    fetch "$DOWNLOAD_BASE/$ARCHIVE" "$work/$ARCHIVE"; parts=("$work/$ARCHIVE")
-  else
-    local c1 c2
-    for c1 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
-      for c2 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
-        local suffix="part-${c1}${c2}" url="$DOWNLOAD_BASE/$ARCHIVE.part-${c1}${c2}"
-        if http_ok "$url"; then fetch "$url" "$work/$ARCHIVE.$suffix"; parts+=("$work/$ARCHIVE.$suffix"); else break 2; fi
-      done
-    done
-  fi
-  [ ${#parts[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
-The client release may not be uploaded yet - see the README for the manual (oras) install."
-  ok "Fetched ${#parts[@]} file(s)."
-
   local final="$work/$ARCHIVE"
-  if [ ${#parts[@]} -gt 1 ]; then say "Joining ${#parts[@]} parts ..."; cat "${parts[@]}" > "$final.joined"; mv "$final.joined" "$final"; fi
+  local attempt parts
+  for attempt in 1 2; do
+    say "Locating client parts ..."
+    parts=(); local suffixes=() c1 c2 stop
+    if http_ok "$DOWNLOAD_BASE/$ARCHIVE"; then
+      suffixes=("")
+    else
+      for c1 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
+        stop=0
+        for c2 in a b c d e f g h i j k l m n o p q r s t u v w x y z; do
+          if http_ok "$DOWNLOAD_BASE/$ARCHIVE.part-${c1}${c2}"; then suffixes+=("part-${c1}${c2}"); else stop=1; break; fi
+        done
+        [ "$stop" = 1 ] && break
+      done
+    fi
+    [ ${#suffixes[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
+The client release may not be uploaded yet - see the README for the manual (oras) install."
+    say "Downloading ${#suffixes[@]} part(s) in parallel ..."
+    local dlpids=() s out url
+    for s in "${suffixes[@]}"; do
+      if [ -z "$s" ]; then out="$work/$ARCHIVE"; url="$DOWNLOAD_BASE/$ARCHIVE"
+      else out="$work/$ARCHIVE.$s"; url="$DOWNLOAD_BASE/$ARCHIVE.$s"; fi
+      curl -fL --retry 3 --retry-delay 2 -C - -o "$out" "$url" >/dev/null 2>&1 &
+      dlpids+=("$!"); parts+=("$out")
+    done
+    local dlfail=0
+    for s in "${dlpids[@]}"; do wait "$s" || dlfail=1; done
+    [ "$dlfail" = 0 ] || die "One or more parts failed to download - re-run to resume."
+    ok "Fetched ${#parts[@]} file(s)."
 
-  say "Verifying archive ..."
-  command -v zstd >/dev/null && { zstd -t "$final" >/dev/null 2>&1 || die "Archive failed integrity check. Re-run to re-download."; }
-  ok "Archive looks good."
+    if [ ${#parts[@]} -gt 1 ]; then say "Joining ${#parts[@]} parts ..."; cat "${parts[@]}" > "$final.joined"; mv "$final.joined" "$final"; fi
+
+    say "Verifying archive ..."
+    if ! command -v zstd >/dev/null || zstd -t "$final" >/dev/null 2>&1; then ok "Archive looks good."; break; fi
+
+    if [ "$attempt" = 1 ]; then
+      warn "Archive failed integrity check - purging cached parts and re-downloading fresh ..."
+      rm -f "$work/$ARCHIVE" "$work/$ARCHIVE".part-* "$final.joined"
+    else
+      die "Archive still failed integrity check after a clean re-download.
+Please try again later, or use the manual (oras) install in the README."
+    fi
+  done
 
   say "Extracting (~16 GB, give it a minute) ..."
   if tar --help 2>/dev/null | grep -q -- '-I'; then tar -I zstd -xf "$final" -C "$INSTALL_DIR"
