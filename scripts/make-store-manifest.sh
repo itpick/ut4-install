@@ -81,6 +81,7 @@ while IFS= read -r f; do
   NFILES=$((NFILES+1))
   sha=$(sha256of "$f")
   size=$(fsize "$f")
+  xb=0; [ -x "$f" ] && xb=1          # executable bit (Linux/Mac need it restored on sync)
   blocks=()
   if [ "$size" -gt "$SPLIT" ]; then
     # split into <sha>.part-aa ...; upload the missing ones.
@@ -107,12 +108,12 @@ while IFS= read -r f; do
     fi
   fi
   # emit one manifest file record (blocks as JSON array) - human/debug format
-  jq -cn --arg p "$rel" --arg s "$sha" --argjson z "$size" \
+  jq -cn --arg p "$rel" --arg s "$sha" --argjson z "$size" --argjson x "$xb" \
      --argjson b "$(printf '%s\n' "${blocks[@]}" | jq -R . | jq -cs .)" \
-     '{path:$p, sha256:$s, size:$z, blocks:$b}' >> "$TMP/files.ndjson"
-  # and a jq-free TSV row (path \t sha256 \t size \t block1,block2,...) - this is what
-  # the installers parse, so they need no jq (stock macOS ships none).
-  printf '%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$(IFS=,; printf '%s' "${blocks[*]}")" >> "$TMP/files.tsv"
+     '{path:$p, sha256:$s, size:$z, blocks:$b, xbit:$x}' >> "$TMP/files.ndjson"
+  # and a jq-free TSV row (path \t sha256 \t size \t block1,block2,... \t xbit) - this is
+  # what the installers parse, so they need no jq (stock macOS ships none). xbit=1 => +x.
+  printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$(IFS=,; printf '%s' "${blocks[*]}")" "$xb" >> "$TMP/files.tsv"
 done < <(find "$STAGE" -type f ! -name '*.pdb' | LC_ALL=C sort)   # newline-delimited: portable (macOS sort lacks -z); UE paths have no newlines
 
 say "files=$NFILES  new blocks uploaded=$NEW  reused=$SKIP"
