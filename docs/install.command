@@ -86,7 +86,8 @@ resolve_download_base() {
   [ -n "$DOWNLOAD_BASE" ] && { echo "$DOWNLOAD_BASE"; return; }
   local tags latest n
   tags=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null \
-        | grep -oE '"tag_name": *"'"$CLIENT_PREFIX"'[^"]*"' | sed -E 's/.*"([^"]+)".*/\1/')
+        | grep -oE '"tag_name": *"'"$CLIENT_PREFIX"'[^"]*"' | sed -E 's/.*"([^"]+)".*/\1/' \
+        | grep -v -- '-store$')   # the content-addressed store is not a selectable build
   latest=$(printf '%s\n' "$tags" | sed -n '1p')
   [ -n "$latest" ] || { echo ""; return; }
   n=$(printf '%s\n' "$tags" | grep -c .)
@@ -111,6 +112,14 @@ command -v tar  >/dev/null || die "tar is required but not found."
 DOWNLOAD_BASE="$(resolve_download_base)"
 [ -n "$DOWNLOAD_BASE" ] || DOWNLOAD_BASE="https://github.com/$REPO/releases/download/${CLIENT_PREFIX}5.8"
 
+# Content-addressed store wiring (incremental updates). PLAT from the client prefix;
+# BUILD_TAG is the resolved release tag. When the build publishes a manifest.tsv we
+# sync only changed files from client-<plat>-store; otherwise fall back to the tarball.
+# (The app is re-signed unsandboxed after install regardless - see the codesign step -
+# so a synced .app gets a fresh signature too.)
+BUILD_TAG="${DOWNLOAD_BASE##*/}"
+PLAT="${CLIENT_PREFIX#client-}"; PLAT="${PLAT%-}"
+
 echo
 say "UT4 on Unreal Engine 5.8 - macOS installer (Universal)"
 echo "${DIM}    Install dir: ${INSTALL_DIR}${NC}"
@@ -124,6 +133,25 @@ http_ok() { curl -fsSL -I -o /dev/null "$1" 2>/dev/null; }
 fetch()   { say "Downloading $(basename "$2") ..."; curl -fL --retry 3 --retry-delay 2 -C - -o "$2" "$1" || die "Download failed: $1"; }
 
 install_client() {
+  # Prefer incremental content-addressed sync when the build publishes a manifest.
+  # Downloads only files whose hash changed vs the installed manifest. The app is
+  # re-signed unsandboxed afterwards in the main flow, so a synced .app is sealed too.
+  # Falls back to the full tarball if the manifest or the sync helper isn't reachable.
+  if http_ok "$DOWNLOAD_BASE/manifest.tsv"; then
+    say "Incremental update available - syncing only changed files ..."
+    mkdir -p "$INSTALL_DIR"
+    local sc="$INSTALL_DIR/.sync-client.sh"
+    if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/sync-client.sh" -o "$sc" 2>/dev/null; then
+      if UT_PAR="${UT_PAR:-6}" /bin/bash "$sc" "$PLAT" "$BUILD_TAG" "$INSTALL_DIR"; then
+        rm -f "$sc"; ok "Client up to date (incremental)."; return 0
+      fi
+      warn "Incremental sync failed - falling back to the full archive."
+    else
+      warn "Couldn't fetch the sync helper - falling back to the full archive."
+    fi
+    rm -f "$sc"
+  fi
+
   if [ -d "$INSTALL_DIR/$APP" ]; then
     ok "Client already present at $INSTALL_DIR/$APP"
     case "$(ask "Re-download and reinstall the client? [y/N] " "n")" in
