@@ -140,7 +140,7 @@ function Install-Client {
   # Downloads only files whose hash changed vs the installed manifest (fresh install
   # pulls everything; an update pulls just the delta). Falls back to the full tarball
   # if the manifest or the sync helper isn't reachable.
-  if (Url-Exists "$DownloadBase/manifest.json") {
+  if (Url-Exists "$DownloadBase/manifest.tsv") {
     Say "Incremental update available - syncing only changed files ..."
     try {
       $sctext = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/sync-client.ps1" -UseBasicParsing).Content
