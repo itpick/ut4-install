@@ -93,7 +93,9 @@ while IFS= read -r f; do
   size=$(fsize "$f")
   xb=0; [ -x "$f" ] && xb=1          # executable bit (Linux/Mac need it restored on sync)
   blocks=()
-  if [ "$size" -gt "$SPLIT" ]; then
+  if [ "$size" -eq 0 ]; then
+    :   # empty file: GitHub rejects 0-byte assets; store no block, sync recreates it empty
+  elif [ "$size" -gt "$SPLIT" ]; then
     # split into <sha>.part-aa ...; upload the missing ones.
     pref="$TMP/blk."
     rm -f "${pref}"*
@@ -123,7 +125,8 @@ while IFS= read -r f; do
      '{path:$p, sha256:$s, size:$z, blocks:$b, xbit:$x}' >> "$TMP/files.ndjson"
   # and a jq-free TSV row (path \t sha256 \t size \t block1,block2,... \t xbit) - this is
   # what the installers parse, so they need no jq (stock macOS ships none). xbit=1 => +x.
-  printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$(IFS=,; printf '%s' "${blocks[*]}")" "$xb" >> "$TMP/files.tsv"
+  bcsv="$(IFS=,; printf '%s' "${blocks[*]-}")"; [ -n "$bcsv" ] || bcsv="-"   # sentinel: empty file has no blocks; avoids an empty TSV field that read(IFS=tab) collapses
+  printf '%s\t%s\t%s\t%s\t%s\n' "$rel" "$sha" "$size" "$bcsv" "$xb" >> "$TMP/files.tsv"
 done < <(find "$STAGE" -type f ! -name '*.pdb' | LC_ALL=C sort)   # newline-delimited: portable (macOS sort lacks -z); UE paths have no newlines
 
 say "files=$NFILES  new blocks uploaded=$NEW  reused=$SKIP"

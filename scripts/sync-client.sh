@@ -36,6 +36,10 @@ while IFS="$TAB" read -r path sha size blocks xbit; do
   [ -n "$path" ] || continue
   osha=""
   [ -f "$LOCAL" ] && osha=$(awk -F"$TAB" -v p="$path" '$1==p{print $2; exit}' "$LOCAL")
+  # Bootstrap: no recorded manifest entry but the file is already on disk (e.g. the user
+  # installed via the bulk tarball, or a prior sync was interrupted). Hash the on-disk file
+  # so unchanged files are skipped instead of fully re-downloaded.
+  if [ -z "$osha" ] && [ -f "$DEST/$path" ]; then osha=$(sha256of "$DEST/$path"); fi
   if [ "$osha" = "$sha" ] && [ -e "$DEST/$path" ]; then continue; fi
   printf '%s\t%s\t%s\t%s\n' "$path" "$sha" "$blocks" "${xbit:-0}" >> "$TMP/need.tsv"
 done < "$TMP/manifest.tsv"
@@ -44,7 +48,7 @@ say "need to update $NEED/$NF files"
 
 if [ "$NEED" -gt 0 ]; then
   # 3) unique blocks to fetch (blocks field is comma-separated)
-  awk -F"$TAB" '{n=split($3,a,","); for(i=1;i<=n;i++) print a[i]}' "$TMP/need.tsv" | sort -u > "$TMP/blocks.txt"
+  awk -F"$TAB" '{n=split($3,a,","); for(i=1;i<=n;i++) if(a[i]!="" && a[i]!="-") print a[i]}' "$TMP/need.tsv" | sort -u > "$TMP/blocks.txt"
   NB=$(grep -c . "$TMP/blocks.txt" | tr -d ' ')
   say "fetching $NB unique blocks (parallel x$PAR) ..."
 
@@ -66,8 +70,12 @@ if [ "$NEED" -gt 0 ]; then
   while IFS="$TAB" read -r path sha blocks xbit; do
     [ -n "$path" ] || continue
     mkdir -p "$DEST/$(dirname "$path")"
-    set --; oldIFS="$IFS"; IFS=','; for b in $blocks; do set -- "$@" "$CACHE/$b"; done; IFS="$oldIFS"
-    cat "$@" > "$DEST/$path.uttmp"
+    if [ -z "$blocks" ] || [ "$blocks" = "-" ]; then
+      : > "$DEST/$path.uttmp"    # empty file: no blocks in the store, create it empty
+    else
+      set --; oldIFS="$IFS"; IFS=','; for b in $blocks; do set -- "$@" "$CACHE/$b"; done; IFS="$oldIFS"
+      cat "$@" > "$DEST/$path.uttmp"
+    fi
     got=$(sha256of "$DEST/$path.uttmp")
     if [ "$got" != "$sha" ]; then echo "X sha mismatch: $path"; rm -f "$DEST/$path.uttmp"; exit 1; fi
     mv -f "$DEST/$path.uttmp" "$DEST/$path"
