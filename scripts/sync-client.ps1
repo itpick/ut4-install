@@ -14,6 +14,14 @@ $Par      = if ($env:UT_PAR) { [int]$env:UT_PAR } else { 6 }
 $Cache    = Join-Path $InstallDir ".blockcache"
 $Local    = Join-Path $InstallDir ".installed-manifest.tsv"
 function Say($m){ Write-Host ("[{0}] {1}" -f (Get-Date -Format HH:mm:ss), $m) }
+# A cached block is valid iff it hashes to its own name (blocks are content-addressed). Split
+# parts are named <filesha>.part-xx (not name-verifiable) -> accept if non-empty; the assembled
+# file's sha256 (step 5) is the backstop. Catches truncated/corrupt but non-empty downloads.
+function Block-Valid($path, $name) {
+  if (-not (Test-Path $path) -or (Get-Item $path).Length -eq 0) { return $false }
+  if ($name -like '*.part-*') { return $true }
+  return ((Get-FileHash -Algorithm SHA256 -Path $path).Hash.ToLower() -eq $name.ToLower())
+}
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
 New-Item -ItemType Directory -Force -Path $Cache | Out-Null
@@ -41,7 +49,11 @@ if (Test-Path $Local) { foreach ($ln in (Get-Content $Local)) { if ($ln -ne "") 
 $need = @()
 foreach ($f in $files) {
   $target = Join-Path $InstallDir ($f.path -replace '/','\')
-  if ($lsha[$f.path] -eq $f.sha256 -and (Test-Path $target)) { continue }
+  # Bootstrap: no recorded manifest entry but the file is already on disk (bulk-tarball
+  # install or interrupted sync) -> hash it so unchanged files are skipped, not re-downloaded.
+  $osha = $lsha[$f.path]
+  if (-not $osha -and (Test-Path $target)) { $osha = (Get-FileHash -Algorithm SHA256 -Path $target).Hash.ToLower() }
+  if ($osha -eq $f.sha256 -and (Test-Path $target)) { continue }
   $need += $f
 }
 Say ("need to update {0}/{1} files" -f $need.Count, $nf)
@@ -49,31 +61,41 @@ Say ("need to update {0}/{1} files" -f $need.Count, $nf)
 if ($need.Count -gt 0) {
   # 4) unique blocks to fetch
   $blockset = @{}
-  foreach ($f in $need) { foreach ($b in $f.blocks) { $blockset[$b] = 1 } }
+  foreach ($f in $need) { foreach ($b in $f.blocks) { if ($b -ne "" -and $b -ne "-") { $blockset[$b] = 1 } } }
   $blist = @($blockset.Keys)
   Say ("fetching {0} unique blocks (parallel x{1}) ..." -f $blist.Count, $Par)
 
-  $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
-  $queue = New-Object System.Collections.Queue
-  foreach ($b in $blist) { $bp = Join-Path $Cache $b; if (-not (Test-Path $bp) -or (Get-Item $bp).Length -eq 0) { $queue.Enqueue($b) } }
-  $active = @()
-  while ($queue.Count -gt 0 -or $active.Count -gt 0) {
-    while ($active.Count -lt $Par -and $queue.Count -gt 0) {
-      $b = $queue.Dequeue(); $out = Join-Path $Cache $b; $url = "$DlBase/$StoreTag/$b"
-      if ($curl) {
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName        = $curl
-        $psi.Arguments       = "-fL --retry 3 --retry-delay 2 -C - -o `"$out`" `"$url`""
-        $psi.UseShellExecute = $false
-        $psi.CreateNoWindow  = $true
-        $active += [System.Diagnostics.Process]::Start($psi)
-      } else {
-        Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+  # download with integrity verification: each single-sha block must hash to its name; corrupt or
+  # truncated blocks are dropped and re-fetched (a non-empty but short block would otherwise
+  # assemble into a bad file). No -C - resume: rm a bad partial and pull it fresh.
+  function Fetch-Blocks($blocks) {
+    $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
+    $queue = New-Object System.Collections.Queue
+    foreach ($b in $blocks) { $queue.Enqueue($b) }
+    $active = @()
+    while ($queue.Count -gt 0 -or $active.Count -gt 0) {
+      while ($active.Count -lt $Par -and $queue.Count -gt 0) {
+        $b = $queue.Dequeue(); $out = Join-Path $Cache $b; $url = "$DlBase/$StoreTag/$b"
+        Remove-Item $out -Force -ErrorAction SilentlyContinue
+        if ($curl) {
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName        = $curl
+          $psi.Arguments       = "-fL --retry 3 --retry-delay 2 -o `"$out`" `"$url`""
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow  = $true
+          $active += [System.Diagnostics.Process]::Start($psi)
+        } else {
+          Invoke-WebRequest -Uri $url -OutFile $out -UseBasicParsing
+        }
       }
+      if ($active.Count -gt 0) { Start-Sleep -Milliseconds 200; $active = @($active | Where-Object { -not $_.HasExited }) }
     }
-    if ($active.Count -gt 0) { Start-Sleep -Milliseconds 200; $active = @($active | Where-Object { -not $_.HasExited }) }
   }
-  foreach ($b in $blist) { $bp = Join-Path $Cache $b; if (-not (Test-Path $bp) -or (Get-Item $bp).Length -eq 0) { throw "block missing: $b (re-run to resume)" } }
+  # fetch blocks we don't already have a valid copy of, then re-fetch any that come back corrupt
+  Fetch-Blocks (@($blist | Where-Object { -not (Block-Valid (Join-Path $Cache $_) $_) }))
+  $bad = @($blist | Where-Object { -not (Block-Valid (Join-Path $Cache $_) $_) })
+  if ($bad.Count -gt 0) { Say "re-fetching incomplete/corrupt blocks ..."; Fetch-Blocks $bad }
+  foreach ($b in $blist) { if (-not (Block-Valid (Join-Path $Cache $b) $b)) { throw "block bad/missing: $b (re-run to resume)" } }
 
   # 5) assemble each file from its blocks (in order) and verify sha256
   foreach ($f in $need) {
@@ -81,7 +103,7 @@ if ($need.Count -gt 0) {
     New-Item -ItemType Directory -Force -Path (Split-Path $target -Parent) | Out-Null
     $tmp = "$target.uttmp"
     $o = [System.IO.File]::Create($tmp)
-    try { foreach ($b in $f.blocks) { $in = [System.IO.File]::OpenRead((Join-Path $Cache $b)); try { $in.CopyTo($o) } finally { $in.Close() } } }
+    try { foreach ($b in $f.blocks) { if ($b -eq "" -or $b -eq "-") { continue }; $in = [System.IO.File]::OpenRead((Join-Path $Cache $b)); try { $in.CopyTo($o) } finally { $in.Close() } } }
     finally { $o.Close() }
     $got = (Get-FileHash -Algorithm SHA256 -Path $tmp).Hash.ToLower()
     if ($got -ne $f.sha256.ToLower()) { Remove-Item $tmp -Force -ErrorAction SilentlyContinue; throw ("sha mismatch: {0}" -f $f.path) }
