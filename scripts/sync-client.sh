@@ -20,6 +20,11 @@ LOCAL="$DEST/.installed-manifest.tsv"
 TAB=$(printf '\t')
 say(){ echo "[$(date +%T)] $*"; }
 sha256of(){ if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
+# A cached block is valid iff it hashes to its own name (blocks are content-addressed). Split
+# parts are named <filesha>.part-xx (not verifiable by name) -> accept if non-empty; the
+# assembled file's sha256 (step 5) is the backstop for those. This catches truncated/corrupt
+# downloads that are non-empty but short, which would otherwise assemble into a bad file.
+block_valid(){ [ -s "$1" ] || return 1; case "$2" in *.part-*) return 0;; *) [ "$(sha256of "$1")" = "$2" ];; esac; }
 
 command -v curl >/dev/null 2>&1 || { echo "X curl is required"; exit 1; }
 mkdir -p "$DEST" "$CACHE"
@@ -52,19 +57,29 @@ if [ "$NEED" -gt 0 ]; then
   NB=$(grep -c . "$TMP/blocks.txt" | tr -d ' ')
   say "fetching $NB unique blocks (parallel x$PAR) ..."
 
-  # 4) parallel download in bounded batches (bash-3.2 safe: no wait -n)
-  count=0; pids=""
-  while IFS= read -r b; do
-    out="$CACHE/$b"
-    [ -s "$out" ] && continue
-    ( curl -fL --retry 3 --retry-delay 2 -C - -o "$out" "$DLBASE/$STORE_TAG/$b" >/dev/null 2>&1 ) &
-    pids="$pids $!"; count=$((count+1))
-    if [ "$count" -ge "$PAR" ]; then for p in $pids; do wait "$p"; done; pids=""; count=0; fi
-  done < "$TMP/blocks.txt"
-  for p in $pids; do wait "$p"; done
+  # 4) parallel download in bounded batches (bash-3.2 safe: no wait -n). Each downloaded block
+  # is verified against its content-address; a corrupt/truncated block is dropped and re-fetched
+  # (a non-empty but short block would otherwise assemble into a bad file). No -C - resume: we
+  # rm a bad partial and pull it fresh rather than risk compounding a corrupt cache entry.
+  fetch_blocks(){
+    count=0; pids=""
+    while IFS= read -r b; do
+      out="$CACHE/$b"
+      block_valid "$out" "$b" && continue      # already have a good copy
+      rm -f "$out"                             # drop any truncated/corrupt partial
+      ( curl -fL --retry 3 --retry-delay 2 -o "$out" "$DLBASE/$STORE_TAG/$b" >/dev/null 2>&1 ) &
+      pids="$pids $!"; count=$((count+1))
+      if [ "$count" -ge "$PAR" ]; then for p in $pids; do wait "$p"; done; pids=""; count=0; fi
+    done < "$TMP/blocks.txt"
+    for p in $pids; do wait "$p"; done
+  }
+  fetch_blocks
+  # one more pass to re-fetch anything that came back incomplete/corrupt
+  bad=0; while IFS= read -r b; do block_valid "$CACHE/$b" "$b" || { bad=1; break; }; done < "$TMP/blocks.txt"
+  [ "$bad" = 0 ] || { say "re-fetching incomplete/corrupt blocks ..."; fetch_blocks; }
 
-  miss=0; while IFS= read -r b; do [ -s "$CACHE/$b" ] || { echo "X block missing: $b"; miss=1; }; done < "$TMP/blocks.txt"
-  [ "$miss" = 0 ] || { echo "X some blocks failed to download - re-run to resume"; exit 1; }
+  miss=0; while IFS= read -r b; do block_valid "$CACHE/$b" "$b" || { echo "X block bad/missing: $b"; miss=1; }; done < "$TMP/blocks.txt"
+  [ "$miss" = 0 ] || { echo "X some blocks failed integrity - re-run to resume"; exit 1; }
 
   # 5) assemble each file from its blocks (in order), verify sha256, restore +x
   while IFS="$TAB" read -r path sha blocks xbit; do
