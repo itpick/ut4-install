@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Install / download help
+    url: https://github.com/itpick/ut4-install#readme
+    about: Installation instructions, one-line installers, and current per-platform status.

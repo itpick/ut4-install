@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a bug in the UT4 (Unreal Engine 5.8) client
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The details below make bugs **much** faster to fix — the OS, roughly when your build is from, and your log files are the three most useful things.
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Linux
+        - macOS (Apple Silicon)
+        - macOS (Intel)
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: build
+    attributes:
+      label: Build / install date
+      description: >
+        Roughly when did you install or last update the client? The first lines of
+        `UnrealTournament.log` also show the engine version and changelist (e.g. `CL55116800`) —
+        copy that if you have it.
+      placeholder: "e.g. installed 2026-07-30, or CL55116800 from the log"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install_method
+    attributes:
+      label: How did you install?
+      options:
+        - One-line installer (install.sh / install.command / install.ps1)
+        - Manual (oras / release parts)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What went wrong, and what did you expect instead? Screenshots welcome.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Launch the client
+        2. Go to ...
+        3. ...
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs (please attach)
+      description: |
+        **Please drag-and-drop your log files into this box** — they're the single most useful thing for diagnosing a bug.
+
+        Where to find `UnrealTournament.log` (and `Diagnostics.txt` if it crashed):
+        - **Linux:** `<install dir>/UnrealTournament/Saved/Logs/` (e.g. `~/UnrealTournament58/UnrealTournament/Saved/Logs/`)
+        - **macOS:** `~/Library/Logs/UnrealTournament/`
+        - **Windows:** `%LOCALAPPDATA%\UnrealTournament\Saved\Logs\`
+      placeholder: Drag & drop UnrealTournament.log (and Diagnostics.txt for crashes) here.
+    validations:
+      required: false
