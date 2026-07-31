@@ -20,7 +20,7 @@ What actually works from a **binary install** right now — updated as builds sh
 | Platform | One-line install | Status | Notes |
 |---|---|---|---|
 | **Linux** | `curl -fsSL https://itpick.github.io/ut4-install/install.sh \| bash` | ✅ Working | Installs, launches, renders, signs in. |
-| **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | ✅ Working | Universal (Intel + Apple Silicon); renders + auto-login verified. Release re-uploaded and **verified** (download-back + `zstd -t`); the installer also self-heals corrupt/partial downloads + fetches parts in parallel. |
+| **macOS** (Universal) | `curl -fsSL https://itpick.github.io/ut4-install/install.command \| bash` | ✅ Working | Universal (Intel + Apple Silicon); renders + auto-login verified. Release re-uploaded and **verified** (download-back + `zstd -t`); the installer also self-heals corrupt/partial downloads (content-addressed block integrity) + fetches client parts **and** map paks in parallel. |
 | **Windows** (Win64) | `irm https://itpick.github.io/ut4-install/install.ps1 \| iex` | ✅ Working | Full rebuild shipped (verified-good `bpHW_WeaponBar`); the corrupt-cook crash — [#24](https://github.com/itpick/ut4-install/issues/24) — is fixed. The old release archive was made from an incomplete cook (~2.5 GB vs the correct ~7 GB); re-run the installer to pull the fixed build. |
 
 ### Test maps / modes
@@ -46,6 +46,9 @@ Current playtest state of the stock content. **✅** good · **🟡** playable w
 | Weapon auto-switch broken — empty-ammo, ammo-pickup, `:loaded` gives wrong weapon — [#16](https://github.com/itpick/ut4-install/issues/16) | Weapons | 🟢 Ships next build (merged `6a11dc0`, compiles clean) |
 | FlagRun crash — Redeemer explosion at flag capture — [#17](https://github.com/itpick/ut4-install/issues/17) | Blitz | 🟢 Ships next build (null-guards merged, compiles clean) |
 | Siege — no bots/monsters spawn — [#18](https://github.com/itpick/ut4-install/issues/18) | Siege | 🟢 Ships next build (cook fix merged; needs a recook) |
+| Team-switch crash — modulo div-by-zero in `ServerSwitchTeam` — [#30](https://github.com/itpick/ut4-install/issues/30) | Team modes | 🟢 Ships next build (fix `56a7701`, built + playtested) |
+| Loot-crate / chest screen null-deref crash — [#28](https://github.com/itpick/ut4-install/issues/28) | UI | 🟢 Ships next build (fix `3a9d26e`, built + playtested) |
+| Client hardening — GameViewport null-guards · resilient CVar lookup · minimap perf — [#27](https://github.com/itpick/ut4-install/issues/27) · [#26](https://github.com/itpick/ut4-install/issues/26) · [#29](https://github.com/itpick/ut4-install/issues/29) | Client | 🟢 Ships next build (`ca30ad5`/`eea5309`/`1a3a352`, built + playtested) |
 | Windows Basic Training crash — corrupt `bpHW_WeaponBar` — [#24](https://github.com/itpick/ut4-install/issues/24) | Windows / cook | 🟢 Fixed — full Win64 rebuild shipped (verified-good asset; old archive was an incomplete cook) |
 | FR-MeltDown — bots die after the countdown — [#20](https://github.com/itpick/ut4-install/issues/20) | Map | 🔴 Open — editor pass on spawns / kill volumes |
 | Bots ignore flag, ride jump pads — [#21](https://github.com/itpick/ut4-install/issues/21) | Map | 🔴 Open — map navmesh rebuild |
