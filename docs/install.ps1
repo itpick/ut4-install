@@ -261,20 +261,54 @@ function Install-Maps {
   $paks = $rel.assets | Where-Object { $_.name -like '*.pak' }
   if (-not $paks) { Warn "No .pak assets found in $MapsTag - skipping."; return }
 
-  $i = 0; $total = $paks.Count
+  $total = $paks.Count
+  $par = if ($env:UT_MAP_PAR) { [int]$env:UT_MAP_PAR } else { 6 }
+  Say ("Downloading {0} map pak(s) (parallel x{1}) ..." -f $total, $par)
+  $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
+  # queue only the paks we don't already have
+  $todo = New-Object System.Collections.Queue
   foreach ($a in $paks) {
-    $i++
     $dest = Join-Path $pakdir.FullName $a.name
-    if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) { Write-Host ("  [{0}/{1}] {2} (have it)" -f $i,$total,$a.name) -ForegroundColor DarkGray; continue }
-    Write-Host ("  [{0}/{1}] {2}" -f $i,$total,$a.name)
-    try { Invoke-WebRequest -Uri $a.browser_download_url -OutFile $dest -UseBasicParsing }
-    catch { Warn "Failed: $($a.name) (skipping)"; Remove-Item $dest -ErrorAction SilentlyContinue; continue }
-    if ($sums) {
+    if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) { Write-Host ("  {0} (have it)" -f $a.name) -ForegroundColor DarkGray }
+    else { $todo.Enqueue($a) }
+  }
+  # bounded-parallel download (curl.exe procs); Invoke-WebRequest fallback stays sequential
+  $active = @()
+  while ($todo.Count -gt 0 -or $active.Count -gt 0) {
+    while ($active.Count -lt $par -and $todo.Count -gt 0) {
+      $a = $todo.Dequeue(); $dest = Join-Path $pakdir.FullName $a.name; $url = $a.browser_download_url
+      Remove-Item $dest -Force -ErrorAction SilentlyContinue
+      if ($curl) {
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName        = $curl
+        $psi.Arguments       = "-fL --retry 3 --retry-delay 2 -o `"$dest`" `"$url`""
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow  = $true
+        $active += @{ proc = [System.Diagnostics.Process]::Start($psi); name = $a.name; dest = $dest }
+      } else {
+        try { Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; Write-Host ("  + {0}" -f $a.name) }
+        catch { Warn "Failed: $($a.name) (skipping)"; Remove-Item $dest -Force -ErrorAction SilentlyContinue }
+      }
+    }
+    if ($active.Count -gt 0) {
+      Start-Sleep -Milliseconds 200
+      foreach ($d in @($active | Where-Object { $_.proc.HasExited })) {
+        if ($d.proc.ExitCode -ne 0) { Warn "Failed: $($d.name) (skipping)"; Remove-Item $d.dest -Force -ErrorAction SilentlyContinue }
+        else { Write-Host ("  + {0}" -f $d.name) }
+      }
+      $active = @($active | Where-Object { -not $_.proc.HasExited })
+    }
+  }
+  # md5 verify (sequential, local hashing); drop a bad file so a re-run re-fetches it
+  if ($sums) {
+    foreach ($a in $paks) {
+      $dest = Join-Path $pakdir.FullName $a.name
+      if (-not (Test-Path $dest)) { continue }
       $line = ($sums -split "`n") | Where-Object { $_ -match [regex]::Escape($a.name) } | Select-Object -First 1
       if ($line) {
         $want = ($line -split '\s+')[0]
         $got  = (Get-FileHash -Algorithm MD5 -Path $dest).Hash.ToLower()
-        if ($want.ToLower() -ne $got) { Warn "md5 mismatch on $($a.name)" }
+        if ($want.ToLower() -ne $got) { Warn "md5 mismatch on $($a.name) - removing"; Remove-Item $dest -Force -ErrorAction SilentlyContinue }
       }
     }
   }

@@ -239,20 +239,32 @@ install_maps() {
   local urls; urls=$(printf '%s' "$json" | grep -oE '"browser_download_url": *"[^"]*\.pak"' | sed -E 's/.*"(https[^"]+)".*/\1/')
   [ -n "$urls" ] || { warn "No .pak assets found in $MAPS_TAG - skipping."; return 0; }
 
-  local total i=0; total=$(printf '%s\n' "$urls" | grep -c . || true)
+  local total par="${UT_MAP_PAR:-6}"; total=$(printf '%s\n' "$urls" | grep -c . || true)
+  say "Downloading $total map pak(s) (parallel x$par) ..."
+  # bounded-parallel: each worker fetches one pak, verifies md5, self-cleans a bad file so a
+  # re-run re-fetches it. md5of + $sums/$pakdir are inherited by the subshells.
+  local mpids=() cnt=0 p
   while IFS= read -r u; do
-    [ -n "$u" ] || continue; i=$((i+1))
-    local name dest; name=$(basename "$u"); dest="$pakdir/$name"
-    if [ -s "$dest" ]; then printf '  %s[%d/%d] %s (have it)%s\n' "$DIM" "$i" "$total" "$name" "$NC"; continue; fi
-    printf '  [%d/%d] %s\n' "$i" "$total" "$name"
-    curl -fL --retry 3 -C - -o "$dest" "$u" || { warn "Failed: $name (skipping)"; rm -f "$dest"; continue; }
-    if [ -n "$sums" ]; then
-      local want; want=$(printf '%s\n' "$sums" | grep -F "$name" | awk '{print $1}' | head -1)
-      [ -n "$want" ] && { local got; got=$(md5of "$dest"); [ "$want" = "$got" ] || warn "md5 mismatch on $name"; }
-    fi
+    [ -n "$u" ] || continue
+    (
+      m_name=$(basename "$u"); m_dest="$pakdir/$m_name"
+      if [ -s "$m_dest" ]; then printf '  %s%s (have it)%s\n' "$DIM" "$m_name" "$NC"; exit 0; fi
+      if ! curl -fL --retry 3 --retry-delay 2 -C - -o "$m_dest" "$u" >/dev/null 2>&1; then
+        printf '  ! failed: %s (skipping)\n' "$m_name"; rm -f "$m_dest"; exit 0; fi
+      if [ -n "$sums" ]; then
+        m_want=$(printf '%s\n' "$sums" | grep -F "$m_name" | awk '{print $1}' | head -1)
+        if [ -n "$m_want" ]; then m_got=$(md5of "$m_dest")
+          [ "$m_want" = "$m_got" ] || { printf '  ! md5 mismatch: %s (skipping)\n' "$m_name"; rm -f "$m_dest"; exit 0; }
+        fi
+      fi
+      printf '  + %s\n' "$m_name"
+    ) &
+    mpids+=("$!"); cnt=$((cnt+1))
+    if [ "$cnt" -ge "$par" ]; then for p in "${mpids[@]}"; do wait "$p"; done; mpids=(); cnt=0; fi
   done <<EOF
 $urls
 EOF
+  for p in "${mpids[@]}"; do wait "$p"; done
   ok "Map set installed to $pakdir"
 }
 
