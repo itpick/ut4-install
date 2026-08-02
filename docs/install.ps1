@@ -30,6 +30,11 @@ param(
   #   ut4-client-win64.tar.zst.part-aa    ut4-client-win64.tar.zst.part-ab  ...
   [string]$DownloadBase = $(if ($env:UT_DOWNLOAD_BASE) { $env:UT_DOWNLOAD_BASE } else { "" }),
   [string]$InstallDir   = $(if ($env:UT_DIR) { $env:UT_DIR } else { Join-Path $env:USERPROFILE "UnrealTournament58" }),
+  # Release channel: "stable" (default, pinned + tested) or "nightly" (latest dev build).
+  # The client tag is client-win64-<channel>; the shared block store is client-win64-store.
+  [string]$Channel      = $(if ($env:UT_CHANNEL) { $env:UT_CHANNEL } else { "stable" }),
+  [switch]$Nightly,
+  [switch]$Stable,
   [switch]$NoMaps,
   [switch]$Force
 )
@@ -45,6 +50,8 @@ $Repo         = "itpick/ut4-install"
 $ClientPrefix = "client-win64-"         # release tags for Win64 client builds
 if ($env:UT_NO_MAPS -eq "1") { $NoMaps = $true }
 $WantMaps = -not $NoMaps
+if ($Nightly) { $Channel = "nightly" }
+if ($Stable)  { $Channel = "stable" }
 
 function Say  ($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Ok   ($m) { Write-Host "OK  $m"  -ForegroundColor Green }
@@ -84,32 +91,18 @@ function Menu-Pick {
 }
 
 # Resolve the release-download base: an explicit -DownloadBase / env override wins;
-# otherwise list published client builds (tags starting with $ClientPrefix, newest
-# first) and let the user pick. Default (and the <2-builds case) is the latest.
+# otherwise pin to the selected channel tag (client-win64-stable by default,
+# client-win64-nightly with -Nightly).
 function Resolve-DownloadBase {
   if ($DownloadBase) { return $DownloadBase }
-  $tags = @()
-  try {
-    $rels = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases?per_page=100" -Headers @{ "User-Agent" = "ut4-install" } -UseBasicParsing
-    # the content-addressed store (client-<plat>-store) is not a selectable build
-    $tags = @($rels | Where-Object { $_.tag_name -like "$ClientPrefix*" -and $_.tag_name -notmatch '-store$' } | ForEach-Object { $_.tag_name })
-  } catch { }
-  if ($tags.Count -eq 0) { return "" }
-  $chosen = $tags[0]
-  if ($tags.Count -gt 1) {
-    Write-Host "Select a build (Up/Down, Enter for latest):" -ForegroundColor Blue
-    $labels = for ($i = 0; $i -lt $tags.Count; $i++) { if ($i -eq 0) { "$($tags[$i])  (latest)" } else { $tags[$i] } }
-    $picked = Menu-Pick -Options @($labels)
-    $chosen = ($picked -replace '  \(latest\)$','')
-  }
-  return "https://github.com/$Repo/releases/download/$chosen"
+  return "https://github.com/$Repo/releases/download/${ClientPrefix}${Channel}"
 }
 
 $tar = Get-Command tar -ErrorAction SilentlyContinue
 if (-not $tar) { Die "tar was not found. Windows 10 (1803+) and Windows 11 ship bsdtar; update Windows, or extract with 7-Zip." }
 
 $DownloadBase = Resolve-DownloadBase
-if (-not $DownloadBase) { $DownloadBase = "https://github.com/$Repo/releases/download/${ClientPrefix}5.8" }
+if (-not $DownloadBase) { $DownloadBase = "https://github.com/$Repo/releases/download/${ClientPrefix}stable" }
 
 # Content-addressed store wiring (incremental updates). $Plat from the client prefix;
 # $BuildTag is the resolved release tag. When the build publishes a manifest.json we
@@ -120,6 +113,7 @@ $Plat     = ($ClientPrefix -replace '^client-','') -replace '-$',''
 Write-Host ""
 Say "UT4 on Unreal Engine 5.8 - Windows installer"
 Write-Host "    Install dir: $InstallDir" -ForegroundColor DarkGray
+Write-Host "    Channel:     $Channel$(if ($Channel -eq 'nightly') { '  (latest dev build - may be unstable)' })" -ForegroundColor DarkGray
 Write-Host "    Client src:  $DownloadBase" -ForegroundColor DarkGray
 Write-Host "    Maps:        $(if ($WantMaps) { "full set ($MapsTag)" } else { 'skipped (-NoMaps)' })" -ForegroundColor DarkGray
 Write-Host ""

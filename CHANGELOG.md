@@ -10,6 +10,8 @@ and editor — was migrated to UE5.8 (C++20), then hardened with the changes bel
 
 ## Features & improvements
 
+- **Stable / nightly release channels** — the installer pins to a tested **stable** channel by default; opt into the latest dev build with `--nightly` / `-Nightly` / `UT_CHANNEL=nightly`. Both channels share one content-addressed block store, so switching downloads only what changed.
+- **In-game bug reporting** — "REPORT A BUG" in the menus uploads your log for an 8-char report id, plus opt-in anonymous crash-log reporting.
 - **Auto-login / remember-me** — remembers your account per login server and signs you back in automatically.
 - **Hubs & matchmaking** — lobby hubs spawn match instances on demand; custom rulesets (Blitz 10v10, the full FlagRun map list, plus DM/CTF); QuickPlay matchmaking.
 - **Automatic map downloads** — missing community map paks download over an HTTPS redirect (per-platform paks, no extra ports to open).

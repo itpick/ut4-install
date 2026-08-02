@@ -96,6 +96,26 @@ The installer pulls every stock map by default so you have the full set offline;
 `--no-maps` (bash) / `-NoMaps` (PowerShell) to skip them. Everything below is the
 **manual / advanced** route.
 
+### Release channels — stable (default) vs nightly
+
+The installer pins to the **stable** channel by default: builds that have been tested and
+promoted. To ride the latest **nightly** dev build instead (newer fixes, may be unstable):
+
+```bash
+# macOS / Linux
+curl -fsSL https://itpick.github.io/ut4-install/install.command | bash -s -- --nightly
+curl -fsSL https://itpick.github.io/ut4-install/install.sh      | bash -s -- --nightly
+```
+```powershell
+# Windows
+& ([scriptblock]::Create((irm https://itpick.github.io/ut4-install/install.ps1))) -Nightly
+```
+
+Or set `UT_CHANNEL=nightly` in the environment. Re-running the installer on the other
+channel switches you over in place (incremental — only changed files download). Both
+channels share one content-addressed block store, so switching is cheap. Maintainers
+promote a tested nightly with `scripts/promote-to-stable.sh <mac|linux|win64>`.
+
 ---
 
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file

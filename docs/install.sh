@@ -26,20 +26,26 @@ set -euo pipefail
 DOWNLOAD_BASE="${DOWNLOAD_BASE:-}"
 CLIENT_PREFIX="client-linux-"     # release tags for Linux client builds
 ARCHIVE="ut4-client-linux.tar.zst"
-MAPS_TAG="maps-linux-v1"          # existing release with the per-map paks
+MAPS_TAG="maps-linux-v1"          # map paks are shared across channels
 REPO="itpick/ut4-install"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/UnrealTournament58}"
 RUN_DIR="LinuxNoEditor"
 RUN_CMD="./UnrealTournament.sh"
 WANT_MAPS=1
+# Release channel: "stable" (default, pinned + tested) or "nightly" (latest dev build).
+# The client tag is client-linux-<channel>; the shared block store is client-linux-store.
+CHANNEL="${UT_CHANNEL:-stable}"
 # ----------------------------------------------------------------------------
 
 # -- args (optional - pipe-safe: pass via `bash -s -- --no-maps`) ------------
 while [ $# -gt 0 ]; do
   case "$1" in
     --no-maps) WANT_MAPS=0 ;;
+    --nightly) CHANNEL="nightly" ;;
+    --stable)  CHANNEL="stable" ;;
+    --channel) shift; CHANNEL="${1:?--channel needs a name}" ;;
     --dir) shift; INSTALL_DIR="${1:?--dir needs a path}" ;;
-    -h|--help) echo "usage: install.sh [--no-maps] [--dir <path>]"; exit 0 ;;
+    -h|--help) echo "usage: install.sh [--no-maps] [--nightly|--stable|--channel <name>] [--dir <path>]"; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
   shift
@@ -80,30 +86,11 @@ menu_pick() {
   printf '%s' "${opts[$sel]}"
 }
 
-# Resolve DOWNLOAD_BASE: explicit env override wins; else list client builds
-# (release tags matching $CLIENT_PREFIX, newest first) and let the user pick.
+# Resolve DOWNLOAD_BASE: explicit env override wins; otherwise pin to the selected
+# channel tag (client-linux-stable by default, client-linux-nightly with --nightly).
 resolve_download_base() {
   [ -n "$DOWNLOAD_BASE" ] && { echo "$DOWNLOAD_BASE"; return; }
-  local tags latest n
-  tags=$(curl -fsSL "https://api.github.com/repos/$REPO/releases?per_page=100" 2>/dev/null \
-        | grep -oE '"tag_name": *"'"$CLIENT_PREFIX"'[^"]*"' | sed -E 's/.*"([^"]+)".*/\1/' \
-        | grep -v -- '-store$')   # the content-addressed store is not a selectable build
-  latest=$(printf '%s\n' "$tags" | sed -n '1p')
-  [ -n "$latest" ] || { echo ""; return; }
-  n=$(printf '%s\n' "$tags" | grep -c .)
-  local chosen="$latest"
-  if [ "$n" -gt 1 ] && [ -e /dev/tty ]; then
-    printf '%sSelect a build%s (Up/Down, Enter for latest):\n' "$BLUE" "$NC" >/dev/tty
-    local labels=() first=1 t
-    while IFS= read -r t; do [ -z "$t" ] && continue
-      if [ "$first" = 1 ]; then labels+=("$t  (latest)"); first=0; else labels+=("$t"); fi
-    done <<TAGS
-$tags
-TAGS
-    local picked; picked=$(menu_pick "${labels[@]}")
-    chosen=$(printf '%s' "$picked" | sed -E 's/  \(latest\)$//')
-  fi
-  echo "https://github.com/$REPO/releases/download/$chosen"
+  echo "https://github.com/$REPO/releases/download/${CLIENT_PREFIX}${CHANNEL}"
 }
 
 # Guard against a macOS user piping the Linux script by mistake.
@@ -119,7 +106,7 @@ if ! tar --help 2>/dev/null | grep -q -- '-I' && ! command -v zstd >/dev/null; t
 fi
 
 DOWNLOAD_BASE="$(resolve_download_base)"
-[ -n "$DOWNLOAD_BASE" ] || DOWNLOAD_BASE="https://github.com/$REPO/releases/download/${CLIENT_PREFIX}5.8"
+[ -n "$DOWNLOAD_BASE" ] || DOWNLOAD_BASE="https://github.com/$REPO/releases/download/${CLIENT_PREFIX}stable"
 
 # Content-addressed store wiring (incremental updates). PLAT comes from the client
 # prefix; BUILD_TAG is the resolved release tag. When the build publishes a
@@ -131,6 +118,7 @@ PLAT="${CLIENT_PREFIX#client-}"; PLAT="${PLAT%-}"
 echo
 say "UT4 on Unreal Engine 5.8 - Linux installer"
 echo "${DIM}    Install dir: ${INSTALL_DIR}${NC}"
+echo "${DIM}    Channel:     ${CHANNEL}$([ "$CHANNEL" = nightly ] && echo "  (latest dev build - may be unstable)")${NC}"
 echo "${DIM}    Client src:  ${DOWNLOAD_BASE}${NC}"
 echo "${DIM}    Maps:        $([ "$WANT_MAPS" = 1 ] && echo "full set ($MAPS_TAG)" || echo "skipped (--no-maps)")${NC}"
 echo
