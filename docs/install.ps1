@@ -40,6 +40,7 @@ param(
   [switch]$Nightly,
   [switch]$Stable,
   [switch]$NoMaps,
+  [switch]$Details,
   [switch]$Force
 )
 
@@ -60,7 +61,37 @@ if ($Stable)  { $Channel = "stable" }
 function Say  ($m) { Write-Host "==> $m" -ForegroundColor Cyan }
 function Ok   ($m) { Write-Host "OK  $m"  -ForegroundColor Green }
 function Warn ($m) { Write-Host "!   $m"  -ForegroundColor Yellow }
-function Die  ($m) { Write-Host "X   $m"  -ForegroundColor Red; if ([Environment]::UserInteractive) { try { Read-Host "Press Enter to close" } catch {} }; exit 1 }
+function Die  ($m) { try { Write-Progress -Activity $script:Phase -Completed } catch {}; Write-Host "X   $m"  -ForegroundColor Red; if ([Environment]::UserInteractive) { try { Read-Host "Press Enter to close" } catch {} }; exit 1 }
+
+# ---- progress UI: a single Write-Progress band (phase title + bar) by default; press 'd'
+# any time during downloads (or pass -Details / UT_DETAILS=1) to toggle the verbose log.
+# $global:UTDetailed is shared with sync-client.ps1 so the toggle is sticky across both. ----
+$global:UTDetailed = [bool]$Details -or ($env:UT_DETAILS -eq '1')
+$script:Phase = ""
+function Poll-Toggle {
+  try {
+    while ([Console]::KeyAvailable) {
+      $k = [Console]::ReadKey($true)
+      if ("$($k.KeyChar)" -match '[dD]') {
+        $global:UTDetailed = -not $global:UTDetailed
+        if ($global:UTDetailed) { try { Write-Progress -Activity $script:Phase -Completed } catch {}; Write-Host "  -- details ON (press d to hide) --" -ForegroundColor DarkGray }
+        else { Write-Host "  -- details OFF --" -ForegroundColor DarkGray }
+      }
+    }
+  } catch {}
+}
+function Phase($t) {
+  $script:Phase = $t
+  if ($global:UTDetailed) { Write-Host ""; Say $t }
+  else { Write-Progress -Activity $t -Status "working ... (press d for details)" -PercentComplete 0 }
+}
+function Prog([int]$p, [string]$s) {
+  Poll-Toggle
+  if ($p -lt 0) { $p = 0 } elseif ($p -gt 100) { $p = 100 }
+  if (-not $global:UTDetailed) { Write-Progress -Activity $script:Phase -Status $s -PercentComplete $p }
+}
+function Detail($m) { if ($global:UTDetailed) { Write-Host ("[{0}] {1}" -f (Get-Date -Format HH:mm:ss), $m) -ForegroundColor DarkGray } }
+function End-Phase { if ($script:Phase) { try { Write-Progress -Activity $script:Phase -Completed } catch {}; $script:Phase = "" } }
 
 # Arrow-key selector. Up/Down to move, Enter to choose. Returns the selected item.
 # Falls back to the first item (the latest build) when there's no interactive
@@ -120,6 +151,7 @@ Write-Host "    Install dir: $InstallDir" -ForegroundColor DarkGray
 Write-Host "    Channel:     $Channel$(if ($Channel -eq 'nightly') { '  (latest dev build - may be unstable)' })" -ForegroundColor DarkGray
 Write-Host "    Client src:  $DownloadBase" -ForegroundColor DarkGray
 Write-Host "    Maps:        $(if ($WantMaps) { "full set ($MapsTag)" } else { 'skipped (-NoMaps)' })" -ForegroundColor DarkGray
+Write-Host "    $(if ($global:UTDetailed) { 'Showing detailed log (press d to hide).' } else { 'Tip: press d during download to show/hide the detailed log.' })" -ForegroundColor DarkGray
 Write-Host ""
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
@@ -149,7 +181,7 @@ function Install-Client {
   # pulls everything; an update pulls just the delta). Falls back to the full tarball
   # if the manifest or the sync helper isn't reachable.
   if (Url-Exists "$DownloadBase/manifest.tsv") {
-    Say "Incremental update available - syncing only changed files ..."
+    Detail "Incremental update available - syncing only changed files ..."
     try {
       # Propagate -MirrorBase into the in-process sync script even when it was passed as a
       # parameter rather than $env:UT_MIRROR_BASE (the script reads the env var directly).
@@ -157,10 +189,12 @@ function Install-Client {
       $sctext = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/sync-client.ps1" -UseBasicParsing).Content
       if ($sctext -is [byte[]]) { $sctext = [Text.Encoding]::UTF8.GetString($sctext) }
       $sb = [ScriptBlock]::Create($sctext)
-      & $sb $Plat $BuildTag $InstallDir
+      & $sb $Plat $BuildTag $InstallDir    # drives its own progress phases; shares $global:UTDetailed
+      End-Phase
       Ok "Client up to date (incremental)."
       return
     } catch {
+      End-Phase
       Warn "Incremental sync failed ($($_.Exception.Message)) - falling back to the full archive."
     }
   }
@@ -179,7 +213,8 @@ function Install-Client {
   # A stale/partial cached part (curl -C - resumes a full-size stale file and never
   # refreshes it, e.g. after a re-upload) is purged and re-fetched fresh, once.
   for ($attempt = 1; $attempt -le 2; $attempt++) {
-    Say "Locating client parts ..."
+    Phase "Downloading UT4"
+    Detail "Locating client parts ..."
     $suffixes = @()
     if (Url-Exists "$DownloadBase/$Archive") {
       $suffixes = @("")
@@ -196,7 +231,15 @@ function Install-Client {
     }
     if ($suffixes.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet - see the README for the manual (oras) install." }
 
-    Say ("Downloading {0} part(s) in parallel ...{1}" -f $suffixes.Count, $(if ($MirrorBase) { " (mirror first, GitHub backup)" } else { "" }))
+    # total download size (sum of part Content-Lengths) so the bar can show GB progress.
+    # Size is probed from GitHub (source of truth); the bytes come from the mirror-first
+    # Resolve-AssetUrl below when a mirror is configured.
+    $totalBytes = 0
+    foreach ($s in $suffixes) {
+      $u = if ($s -eq "") { "$DownloadBase/$Archive" } else { "$DownloadBase/$Archive.$s" }
+      try { $totalBytes += [int64]((Invoke-WebRequest -Uri $u -Method Head -UseBasicParsing).Headers['Content-Length']) } catch {}
+    }
+    Detail ("Downloading {0} part(s) in parallel ...{1}" -f $suffixes.Count, $(if ($MirrorBase) { " (mirror first, GitHub backup)" } else { "" }))
     $parts = @()
     if ($curl) {
       $procs = @()
@@ -212,20 +255,31 @@ function Install-Client {
         $procs += [System.Diagnostics.Process]::Start($psi)
         $parts += $out
       }
+      # poll for a live byte-level progress bar instead of a blocking WaitForExit
+      while ($procs | Where-Object { -not $_.HasExited }) {
+        Start-Sleep -Milliseconds 300
+        $have = 0; foreach ($pp in $parts) { if (Test-Path $pp) { $have += (Get-Item $pp).Length } }
+        if ($totalBytes -gt 0) { Prog ([int](100 * $have / $totalBytes)) ("{0:N1} / {1:N1} GB" -f ($have/1GB), ($totalBytes/1GB)) }
+        else { Prog 50 ("{0:N1} GB" -f ($have/1GB)) }
+      }
       $dlfail = $false
-      foreach ($p in $procs) { $p.WaitForExit(); if ($p.ExitCode -ne 0) { $dlfail = $true } }
+      foreach ($p in $procs) { if ($p.ExitCode -ne 0) { $dlfail = $true } }
       if ($dlfail) { Die "One or more parts failed to download - re-run to resume." }
     } else {
+      $i = 0
       foreach ($s in $suffixes) {
+        $i++; Prog ([int](100 * $i / $suffixes.Count)) ("part $i / $($suffixes.Count)")
         if ($s -eq "") { $out = $final; $asset = $Archive }
         else           { $out = Join-Path $work "$Archive.$s"; $asset = "$Archive.$s" }
-        Fetch (Resolve-AssetUrl $asset) $out; $parts += $out
+        Detail "Downloading $(Split-Path $out -Leaf) ..."; Invoke-WebRequest -Uri (Resolve-AssetUrl $asset) -OutFile $out -UseBasicParsing; $parts += $out
       }
     }
-    Ok "Fetched $($parts.Count) file(s)."
+    Prog 100 "download complete"
+    Detail "Fetched $($parts.Count) file(s)."
 
+    Phase "Verifying files"
     if ($parts.Count -gt 1) {
-      Say "Joining $($parts.Count) parts ..."
+      Detail "Joining $($parts.Count) parts ..."
       $sorted = $parts | Sort-Object
       $out = [System.IO.File]::Create("$final.joined")
       try { foreach ($p in $sorted) { $in = [System.IO.File]::OpenRead($p); try { $in.CopyTo($out) } finally { $in.Close() } } }
@@ -233,10 +287,10 @@ function Install-Client {
       Move-Item -Force "$final.joined" $final
     }
 
-    Say "Verifying archive (integrity) ..."
+    Prog 50 "checking archive integrity"
     if ((Get-Item $final).Length -lt 1MB) { $bad = $true }
     else { & tar --zstd -tf $final > $null 2>&1; $bad = ($LASTEXITCODE -ne 0) }
-    if (-not $bad) { Ok "Archive looks good ($([math]::Round((Get-Item $final).Length/1GB,1)) GB)."; break }
+    if (-not $bad) { Prog 100 "archive OK"; Detail ("Archive looks good ({0} GB)." -f [math]::Round((Get-Item $final).Length/1GB,1)); break }
 
     if ($attempt -eq 1) {
       Warn "Archive failed integrity check - purging cached parts and re-downloading fresh ..."
@@ -247,21 +301,24 @@ function Install-Client {
     }
   }
 
-  Say "Extracting (~10 GB, give it a minute) ..."
+  Phase "Extracting"
+  Prog 0 "unpacking ~10 GB (give it a minute)"
   & tar --zstd -xf $final -C $InstallDir
   if ($LASTEXITCODE -ne 0) { Die "Extraction failed (tar exit $LASTEXITCODE)." }
   if (-not (Test-Path $exePath)) { Die "Extraction finished but $Exe is missing." }
   Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+  End-Phase
   Ok "Client installed."
 }
 
 function Install-Maps {
-  if (-not $WantMaps) { Say "Skipping map paks (-NoMaps)."; return }
+  if (-not $WantMaps) { Detail "Skipping map paks (-NoMaps)."; return }
   $pakdir = Get-ChildItem -Path $InstallDir -Recurse -Directory -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -match 'Content\\Paks$' } | Select-Object -First 1
   if (-not $pakdir) { Warn "Couldn't find the client's Content\Paks dir - skipping maps."; return }
 
-  Say "Fetching the full map set ($MapsTag) ..."
+  Phase "Downloading maps"
+  Detail "Fetching the full map set ($MapsTag) ..."
   try { $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/$Repo/releases/tags/$MapsTag" -Headers @{ "User-Agent" = "ut4-install" } -UseBasicParsing }
   catch { Warn "Couldn't reach the maps release - skipping."; return }
 
@@ -275,15 +332,17 @@ function Install-Maps {
 
   $total = $paks.Count
   $par = if ($env:UT_MAP_PAR) { [int]$env:UT_MAP_PAR } else { 6 }
-  Say ("Downloading {0} map pak(s) (parallel x{1}) ..." -f $total, $par)
+  Detail ("Downloading {0} map pak(s) (parallel x{1}) ..." -f $total, $par)
   $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
   # queue only the paks we don't already have
+  $done = 0
   $todo = New-Object System.Collections.Queue
   foreach ($a in $paks) {
     $dest = Join-Path $pakdir.FullName $a.name
-    if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) { Write-Host ("  {0} (have it)" -f $a.name) -ForegroundColor DarkGray }
+    if ((Test-Path $dest) -and (Get-Item $dest).Length -gt 0) { $done++; Detail ("{0} (have it)" -f $a.name) }
     else { $todo.Enqueue($a) }
   }
+  Prog ([int](100 * $done / [Math]::Max($total,1))) ("$done / $total maps")
   # bounded-parallel download (curl.exe procs); Invoke-WebRequest fallback stays sequential
   $active = @()
   while ($todo.Count -gt 0 -or $active.Count -gt 0) {
@@ -298,7 +357,7 @@ function Install-Maps {
         $psi.CreateNoWindow  = $true
         $active += @{ proc = [System.Diagnostics.Process]::Start($psi); name = $a.name; dest = $dest }
       } else {
-        try { Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; Write-Host ("  + {0}" -f $a.name) }
+        try { Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing; $done++; Detail ("+ {0}" -f $a.name); Prog ([int](100 * $done / [Math]::Max($total,1))) ("$done / $total maps") }
         catch { Warn "Failed: $($a.name) (skipping)"; Remove-Item $dest -Force -ErrorAction SilentlyContinue }
       }
     }
@@ -306,9 +365,10 @@ function Install-Maps {
       Start-Sleep -Milliseconds 200
       foreach ($d in @($active | Where-Object { $_.proc.HasExited })) {
         if ($d.proc.ExitCode -ne 0) { Warn "Failed: $($d.name) (skipping)"; Remove-Item $d.dest -Force -ErrorAction SilentlyContinue }
-        else { Write-Host ("  + {0}" -f $d.name) }
+        else { $done++; Detail ("+ {0}" -f $d.name) }
       }
       $active = @($active | Where-Object { -not $_.proc.HasExited })
+      Prog ([int](100 * $done / [Math]::Max($total,1))) ("$done / $total maps")
     }
   }
   # md5 verify (sequential, local hashing); drop a bad file so a re-run re-fetches it
@@ -324,6 +384,7 @@ function Install-Maps {
       }
     }
   }
+  End-Phase
   Ok "Map set installed to $($pakdir.FullName)"
 }
 
@@ -341,14 +402,16 @@ function Install-Prereqs {
   # The game needs the Visual C++ x64 redistributable. Without it the top-level
   # UnrealTournament.exe (UE's launcher/prereq stub) errors asking for the
   # "VC++ redist 2018-2022". Install it so the game just launches.
-  if (Test-VCRedistInstalled) { Ok "Visual C++ x64 runtime already installed." ; return }
-  Say "Installing the Visual C++ x64 runtime the game needs ..."
+  if (Test-VCRedistInstalled) { Detail "Visual C++ x64 runtime already installed." ; return }
+  Phase "Installing prerequisites"
+  Prog 30 "Visual C++ x64 runtime"
+  Detail "Installing the Visual C++ x64 runtime the game needs ..."
 
   # 1) Prefer the prerequisite installer bundled in the staged build.
   $bundled = Get-ChildItem -Path $InstallDir -Recurse -Filter "UEPrereqSetup_x64.exe" -ErrorAction SilentlyContinue |
              Select-Object -First 1
   if ($bundled) {
-    Say "Running bundled UE prerequisites ($($bundled.Name)) ..."
+    Detail "Running bundled UE prerequisites ($($bundled.Name)) ..."
     try {
       $p = Start-Process -FilePath $bundled.FullName -ArgumentList "/install","/quiet","/norestart" -Wait -PassThru
       if ($p.ExitCode -in 0,1638,3010,5100) { Ok "Prerequisites installed."; return }
@@ -359,7 +422,7 @@ function Install-Prereqs {
   # 2) Fall back to Microsoft's standalone VC++ x64 redistributable.
   $vc = Join-Path $env:TEMP "vc_redist.x64.exe"
   try {
-    Say "Downloading Microsoft VC++ x64 redistributable ..."
+    Detail "Downloading Microsoft VC++ x64 redistributable ..."
     Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile $vc -UseBasicParsing
     $p = Start-Process -FilePath $vc -ArgumentList "/install","/quiet","/norestart" -Wait -PassThru
     Remove-Item $vc -ErrorAction SilentlyContinue
@@ -393,6 +456,7 @@ function Find-GameExe {
 Install-Client
 Install-Maps
 Install-Prereqs
+End-Phase
 
 $gameExe = Find-GameExe
 if (-not $gameExe) { $gameExe = $exePath }
