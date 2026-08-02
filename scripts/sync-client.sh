@@ -14,6 +14,10 @@ REPO="${UT_REPO:-itpick/ut4-install}"
 STORE_TAG="client-${PLAT}-store"
 DLBASE="https://github.com/$REPO/releases/download"
 PAR="${UT_PAR:-6}"
+# Optional self-hosted mirror (CDN/origin) tried first for the manifest + every block, with
+# GitHub as the backup/source of truth (ut4-install#23). Off by default: empty = zero behavior
+# change. Layout must mirror GitHub Releases exactly: $UT_MIRROR_BASE/<tag>/<asset>.
+MIRROR_BASE="${UT_MIRROR_BASE:-}"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
 CACHE="$DEST/.blockcache"
 LOCAL="$DEST/.installed-manifest.tsv"
@@ -29,9 +33,14 @@ block_valid(){ [ -s "$1" ] || return 1; case "$2" in *.part-*) return 0;; *) [ "
 command -v curl >/dev/null 2>&1 || { echo "X curl is required"; exit 1; }
 mkdir -p "$DEST" "$CACHE"
 
-# 1) fetch the chosen build's manifest (tab-separated: path \t sha256 \t size \t blocks-csv)
+# 1) fetch the chosen build's manifest (tab-separated: path \t sha256 \t size \t blocks-csv).
+# Mirror first (short timeout) if configured, falling back to GitHub.
 say "fetching manifest for $BUILD_TAG ..."
-curl -fsSL "$DLBASE/$BUILD_TAG/manifest.tsv" -o "$TMP/manifest.tsv" || { echo "X no manifest.tsv at $BUILD_TAG"; exit 1; }
+got_manifest=0
+if [ -n "$MIRROR_BASE" ] && curl -fsSL --connect-timeout 4 -o "$TMP/manifest.tsv" "$MIRROR_BASE/$BUILD_TAG/manifest.tsv" 2>/dev/null && [ -s "$TMP/manifest.tsv" ]; then
+  got_manifest=1
+fi
+[ "$got_manifest" = 1 ] || curl -fsSL "$DLBASE/$BUILD_TAG/manifest.tsv" -o "$TMP/manifest.tsv" || { echo "X no manifest.tsv at $BUILD_TAG"; exit 1; }
 NF=$(grep -c . "$TMP/manifest.tsv" | tr -d ' ')
 say "manifest lists $NF files"
 
@@ -61,22 +70,33 @@ if [ "$NEED" -gt 0 ]; then
   # is verified against its content-address; a corrupt/truncated block is dropped and re-fetched
   # (a non-empty but short block would otherwise assemble into a bad file). No -C - resume: we
   # rm a bad partial and pull it fresh rather than risk compounding a corrupt cache entry.
-  fetch_blocks(){
+  fetch_blocks(){  # <base_url>
+    local base="$1"
     count=0; pids=""
     while IFS= read -r b; do
       out="$CACHE/$b"
       block_valid "$out" "$b" && continue      # already have a good copy
       rm -f "$out"                             # drop any truncated/corrupt partial
-      ( curl -fL --retry 3 --retry-delay 2 -o "$out" "$DLBASE/$STORE_TAG/$b" >/dev/null 2>&1 ) &
+      ( curl -fL --retry 3 --retry-delay 2 -o "$out" "$base/$STORE_TAG/$b" >/dev/null 2>&1 ) &
       pids="$pids $!"; count=$((count+1))
       if [ "$count" -ge "$PAR" ]; then for p in $pids; do wait "$p"; done; pids=""; count=0; fi
     done < "$TMP/blocks.txt"
     for p in $pids; do wait "$p"; done
   }
-  fetch_blocks
-  # one more pass to re-fetch anything that came back incomplete/corrupt
+  # First pass: the mirror if configured (self-host - ut4-install#23), else GitHub directly.
+  FIRST_BASE="$DLBASE"; [ -n "$MIRROR_BASE" ] && FIRST_BASE="$MIRROR_BASE"
+  [ -n "$MIRROR_BASE" ] && say "trying self-hosted mirror first ($MIRROR_BASE) ..."
+  fetch_blocks "$FIRST_BASE"
+  # Second pass: re-fetch anything incomplete/corrupt/missing - always from GitHub. This is both
+  # the existing corrupt-download retry AND the mirror-miss fallback: a mirror that doesn't have
+  # every block yet (lazy-seeded CDN, partial rsync, or unreachable) degrades to plain GitHub for
+  # just the blocks it was missing, instead of failing the whole sync.
   bad=0; while IFS= read -r b; do block_valid "$CACHE/$b" "$b" || { bad=1; break; }; done < "$TMP/blocks.txt"
-  [ "$bad" = 0 ] || { say "re-fetching incomplete/corrupt blocks ..."; fetch_blocks; }
+  if [ "$bad" = 1 ]; then
+    if [ "$FIRST_BASE" != "$DLBASE" ]; then say "some blocks missing on the mirror - falling back to GitHub ..."
+    else say "re-fetching incomplete/corrupt blocks ..."; fi
+    fetch_blocks "$DLBASE"
+  fi
 
   miss=0; while IFS= read -r b; do block_valid "$CACHE/$b" "$b" || { echo "X block bad/missing: $b"; miss=1; }; done < "$TMP/blocks.txt"
   [ "$miss" = 0 ] || { echo "X some blocks failed integrity - re-run to resume"; exit 1; }

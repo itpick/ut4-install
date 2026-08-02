@@ -33,6 +33,10 @@ param(
   # Release channel: "stable" (default, pinned + tested) or "nightly" (latest dev build).
   # The client tag is client-win64-<channel>; the shared block store is client-win64-store.
   [string]$Channel      = $(if ($env:UT_CHANNEL) { $env:UT_CHANNEL } else { "stable" }),
+  # Optional self-hosted mirror (CDN/origin) tried before GitHub - GitHub remains the
+  # backup / source of truth (#23). Off by default: empty = zero behavior change. Its
+  # layout must mirror GitHub Releases exactly: $MirrorBase/<tag>/<asset>.
+  [string]$MirrorBase  = $(if ($env:UT_MIRROR_BASE) { $env:UT_MIRROR_BASE } else { "" }),
   [switch]$Nightly,
   [switch]$Stable,
   [switch]$NoMaps,
@@ -128,6 +132,16 @@ function Fetch([string]$url, [string]$dest) {
   Say "Downloading $(Split-Path $dest -Leaf) ..."
   Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
 }
+# Resolve-AssetUrl <asset> - prefer the mirror (quick HEAD probe, short timeout) if configured
+# and it actually has this asset; otherwise use GitHub. Existence discovery of which parts exist
+# at all still runs against GitHub above; this only picks where the bytes come from.
+function Resolve-AssetUrl([string]$asset) {
+  if ($MirrorBase) {
+    $murl = "$MirrorBase/$BuildTag/$asset"
+    try { Invoke-WebRequest -Uri $murl -Method Head -UseBasicParsing -TimeoutSec 4 | Out-Null; return $murl } catch {}
+  }
+  return "$DownloadBase/$asset"
+}
 
 function Install-Client {
   # Prefer incremental content-addressed sync when the build publishes a manifest.
@@ -137,6 +151,9 @@ function Install-Client {
   if (Url-Exists "$DownloadBase/manifest.tsv") {
     Say "Incremental update available - syncing only changed files ..."
     try {
+      # Propagate -MirrorBase into the in-process sync script even when it was passed as a
+      # parameter rather than $env:UT_MIRROR_BASE (the script reads the env var directly).
+      if ($MirrorBase) { $env:UT_MIRROR_BASE = $MirrorBase }
       $sctext = (Invoke-WebRequest -Uri "https://raw.githubusercontent.com/$Repo/main/scripts/sync-client.ps1" -UseBasicParsing).Content
       if ($sctext -is [byte[]]) { $sctext = [Text.Encoding]::UTF8.GetString($sctext) }
       $sb = [ScriptBlock]::Create($sctext)
@@ -179,13 +196,14 @@ function Install-Client {
     }
     if ($suffixes.Count -eq 0) { Die "No client found at $DownloadBase (checked single file and part-aa). The client release may not be uploaded yet - see the README for the manual (oras) install." }
 
-    Say "Downloading $($suffixes.Count) part(s) in parallel ..."
+    Say ("Downloading {0} part(s) in parallel ...{1}" -f $suffixes.Count, $(if ($MirrorBase) { " (mirror first, GitHub backup)" } else { "" }))
     $parts = @()
     if ($curl) {
       $procs = @()
       foreach ($s in $suffixes) {
-        if ($s -eq "") { $out = $final; $url = "$DownloadBase/$Archive" }
-        else           { $out = Join-Path $work "$Archive.$s"; $url = "$DownloadBase/$Archive.$s" }
+        if ($s -eq "") { $out = $final; $asset = $Archive }
+        else           { $out = Join-Path $work "$Archive.$s"; $asset = "$Archive.$s" }
+        $url = Resolve-AssetUrl $asset
         $psi = New-Object System.Diagnostics.ProcessStartInfo
         $psi.FileName        = $curl
         $psi.Arguments       = "-fL --retry 3 --retry-delay 2 -C - -o `"$out`" `"$url`""
@@ -199,9 +217,9 @@ function Install-Client {
       if ($dlfail) { Die "One or more parts failed to download - re-run to resume." }
     } else {
       foreach ($s in $suffixes) {
-        if ($s -eq "") { $out = $final; $url = "$DownloadBase/$Archive" }
-        else           { $out = Join-Path $work "$Archive.$s"; $url = "$DownloadBase/$Archive.$s" }
-        Fetch $url $out; $parts += $out
+        if ($s -eq "") { $out = $final; $asset = $Archive }
+        else           { $out = Join-Path $work "$Archive.$s"; $asset = "$Archive.$s" }
+        Fetch (Resolve-AssetUrl $asset) $out; $parts += $out
       }
     }
     Ok "Fetched $($parts.Count) file(s)."
