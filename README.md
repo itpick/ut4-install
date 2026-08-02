@@ -116,6 +116,35 @@ channel switches you over in place (incremental — only changed files download)
 channels share one content-addressed block store, so switching is cheap. Maintainers
 promote a tested nightly with `scripts/promote-to-stable.sh <mac|linux|win64>`.
 
+### Download speed — parallelism + optional self-hosted mirror
+
+All three installers already download in parallel: split client-archive parts, content-
+addressed store blocks, and the ~40 map paks (`UT_MAP_PAR`, default 6 concurrent) all fetch
+concurrently, with per-file resume + integrity verification (see [#23](https://github.com/itpick/ut4-install/issues/23)).
+
+For the other half of #23 — self-hosting the main download with GitHub as a backup — every
+installer and sync script supports an optional mirror, off by default:
+
+```bash
+# macOS / Linux
+UT_MIRROR_BASE=https://mirror.example.com curl -fsSL https://itpick.github.io/ut4-install/install.sh | bash
+```
+```powershell
+# Windows
+$env:UT_MIRROR_BASE = "https://mirror.example.com"
+irm https://itpick.github.io/ut4-install/install.ps1 | iex
+```
+
+When set, every download (client-archive parts, the manifest, and every content-addressed
+store block) tries `$UT_MIRROR_BASE/<release-tag>/<asset>` first and falls back to GitHub
+per-file if the mirror doesn't have it or isn't reachable — so a partially-seeded or
+temporarily-down mirror degrades to plain GitHub instead of failing outright. Leave it unset
+(the default) and behavior is unchanged. A mirror just needs to serve the identical path
+layout as GitHub Releases (`<tag>/<asset>`) — e.g. an object-storage bucket + CDN kept in sync
+with the GitHub releases via `rclone`/`rsync`, fronting the highest-volume assets (the block
+store and the latest client archive). Standing up that mirror is an infra/ops task, not an
+installer change — this wiring is ready for whenever one exists.
+
 ---
 
 Client builds are published as OCI artifacts on **GitHub Container Registry** (no per-file

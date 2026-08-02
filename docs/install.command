@@ -29,6 +29,11 @@ CLIENT_PREFIX="client-mac-"       # release tags for macOS client builds
 ARCHIVE="ut4-client-mac.tar.zst"
 MAPS_TAG="maps-mac-v1"            # map paks are shared across channels
 REPO="itpick/ut4-install"
+# Optional self-hosted mirror (CDN/origin), tried before GitHub - GitHub remains the
+# backup / source of truth (#23). Off by default: empty = zero behavior change. Its
+# layout must mirror GitHub Releases exactly: $UT_MIRROR_BASE/<tag>/<asset>, e.g. a
+# rsync/rclone mirror of https://github.com/itpick/ut4-install/releases/download/.
+MIRROR_BASE="${UT_MIRROR_BASE:-}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/UnrealTournament58}"
 APP="UnrealTournament.app"
 # CRITICAL: the client MUST be signed WITHOUT the app sandbox. A sandboxed build
@@ -120,6 +125,21 @@ mkdir -p "$INSTALL_DIR"; cd "$INSTALL_DIR"
 http_ok() { curl -fsSL -I -o /dev/null "$1" 2>/dev/null; }
 fetch()   { say "Downloading $(basename "$2") ..."; curl -fL --retry 3 --retry-delay 2 -C - -o "$2" "$1" || die "Download failed: $1"; }
 
+# fetch_part <asset_name> <dest>  - try the mirror first (short timeout, no resume: a stale
+# partial from a different origin must not be resumed into), fall back to GitHub on any miss.
+# Existence discovery (which parts exist) stays on GitHub above; this only picks where the
+# bytes come from once a part is known to exist.
+fetch_part() {
+  local asset="$1" dest="$2"
+  if [ -n "$MIRROR_BASE" ]; then
+    if curl -fL --retry 1 --connect-timeout 4 -o "$dest" "$MIRROR_BASE/$BUILD_TAG/$asset" >/dev/null 2>&1 && [ -s "$dest" ]; then
+      return 0
+    fi
+    rm -f "$dest"
+  fi
+  curl -fL --retry 3 --retry-delay 2 -C - -o "$dest" "$DOWNLOAD_BASE/$asset" >/dev/null 2>&1
+}
+
 install_client() {
   # Prefer incremental content-addressed sync when the build publishes a manifest.
   # Downloads only files whose hash changed vs the installed manifest. The app is
@@ -130,7 +150,7 @@ install_client() {
     mkdir -p "$INSTALL_DIR"
     local sc="$INSTALL_DIR/.sync-client.sh"
     if curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/sync-client.sh" -o "$sc" 2>/dev/null; then
-      if UT_PAR="${UT_PAR:-6}" /bin/bash "$sc" "$PLAT" "$BUILD_TAG" "$INSTALL_DIR"; then
+      if UT_PAR="${UT_PAR:-6}" UT_MIRROR_BASE="$MIRROR_BASE" /bin/bash "$sc" "$PLAT" "$BUILD_TAG" "$INSTALL_DIR"; then
         rm -f "$sc"; ok "Client up to date (incremental)."; return 0
       fi
       warn "Incremental sync failed - falling back to the full archive."
@@ -167,12 +187,12 @@ install_client() {
     fi
     [ ${#suffixes[@]} -gt 0 ] || die "No client found at $DOWNLOAD_BASE (checked single file and part-aa).
 The client release may not be uploaded yet - see the README for the manual (oras) install."
-    say "Downloading ${#suffixes[@]} part(s) in parallel ..."
-    local dlpids=() s out url
+    say "Downloading ${#suffixes[@]} part(s) in parallel ...$([ -n "$MIRROR_BASE" ] && echo " (mirror first, GitHub backup)")"
+    local dlpids=() s out asset
     for s in "${suffixes[@]}"; do
-      if [ -z "$s" ]; then out="$work/$ARCHIVE"; url="$DOWNLOAD_BASE/$ARCHIVE"
-      else out="$work/$ARCHIVE.$s"; url="$DOWNLOAD_BASE/$ARCHIVE.$s"; fi
-      curl -fL --retry 3 --retry-delay 2 -C - -o "$out" "$url" >/dev/null 2>&1 &
+      if [ -z "$s" ]; then out="$work/$ARCHIVE"; asset="$ARCHIVE"
+      else out="$work/$ARCHIVE.$s"; asset="$ARCHIVE.$s"; fi
+      fetch_part "$asset" "$out" &
       dlpids+=("$!"); parts+=("$out")
     done
     local dlfail=0

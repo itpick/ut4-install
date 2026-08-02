@@ -11,6 +11,10 @@ $Repo     = if ($env:UT_REPO) { $env:UT_REPO } else { "itpick/ut4-install" }
 $StoreTag = "client-$Platform-store"
 $DlBase   = "https://github.com/$Repo/releases/download"
 $Par      = if ($env:UT_PAR) { [int]$env:UT_PAR } else { 6 }
+# Optional self-hosted mirror (CDN/origin) tried first for the manifest + every block, with
+# GitHub as the backup/source of truth (ut4-install#23). Off by default: empty = zero behavior
+# change. Layout must mirror GitHub Releases exactly: $MirrorBase/<tag>/<asset>.
+$MirrorBase = if ($env:UT_MIRROR_BASE) { $env:UT_MIRROR_BASE } else { "" }
 $Cache    = Join-Path $InstallDir ".blockcache"
 $Local    = Join-Path $InstallDir ".installed-manifest.tsv"
 function Say($m){ Write-Host ("[{0}] {1}" -f (Get-Date -Format HH:mm:ss), $m) }
@@ -30,8 +34,14 @@ New-Item -ItemType Directory -Force -Path $Cache | Out-Null
 # assets as octet-stream so .Content is a byte[]. tab-separated: path sha256 size blocks-csv
 Say "fetching manifest for $BuildTag ..."
 $mfile = Join-Path $Cache "manifest.tsv"
-try { Invoke-WebRequest -Uri "$DlBase/$BuildTag/manifest.tsv" -OutFile $mfile -UseBasicParsing }
-catch { throw "no manifest.tsv at $BuildTag" }
+$gotManifest = $false
+if ($MirrorBase) {
+  try { Invoke-WebRequest -Uri "$MirrorBase/$BuildTag/manifest.tsv" -OutFile $mfile -UseBasicParsing -TimeoutSec 5; $gotManifest = $true } catch {}
+}
+if (-not $gotManifest) {
+  try { Invoke-WebRequest -Uri "$DlBase/$BuildTag/manifest.tsv" -OutFile $mfile -UseBasicParsing }
+  catch { throw "no manifest.tsv at $BuildTag" }
+}
 $files = @()
 foreach ($ln in (Get-Content $mfile)) {
   if ($ln -eq "") { continue }
@@ -68,14 +78,14 @@ if ($need.Count -gt 0) {
   # download with integrity verification: each single-sha block must hash to its name; corrupt or
   # truncated blocks are dropped and re-fetched (a non-empty but short block would otherwise
   # assemble into a bad file). No -C - resume: rm a bad partial and pull it fresh.
-  function Fetch-Blocks($blocks) {
+  function Fetch-Blocks($blocks, $base) {
     $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
     $queue = New-Object System.Collections.Queue
     foreach ($b in $blocks) { $queue.Enqueue($b) }
     $active = @()
     while ($queue.Count -gt 0 -or $active.Count -gt 0) {
       while ($active.Count -lt $Par -and $queue.Count -gt 0) {
-        $b = $queue.Dequeue(); $out = Join-Path $Cache $b; $url = "$DlBase/$StoreTag/$b"
+        $b = $queue.Dequeue(); $out = Join-Path $Cache $b; $url = "$base/$StoreTag/$b"
         Remove-Item $out -Force -ErrorAction SilentlyContinue
         if ($curl) {
           $psi = New-Object System.Diagnostics.ProcessStartInfo
@@ -91,10 +101,20 @@ if ($need.Count -gt 0) {
       if ($active.Count -gt 0) { Start-Sleep -Milliseconds 200; $active = @($active | Where-Object { -not $_.HasExited }) }
     }
   }
-  # fetch blocks we don't already have a valid copy of, then re-fetch any that come back corrupt
-  Fetch-Blocks (@($blist | Where-Object { -not (Block-Valid (Join-Path $Cache $_) $_) }))
+  # First pass: the mirror if configured (self-host - ut4-install#23), else GitHub directly.
+  $firstBase = if ($MirrorBase) { $MirrorBase } else { $DlBase }
+  if ($MirrorBase) { Say "trying self-hosted mirror first ($MirrorBase) ..." }
+  Fetch-Blocks (@($blist | Where-Object { -not (Block-Valid (Join-Path $Cache $_) $_) })) $firstBase
+  # Second pass: re-fetch anything incomplete/corrupt/missing - always from GitHub. This is both
+  # the existing corrupt-download retry AND the mirror-miss fallback: a mirror missing some
+  # blocks (lazy-seeded CDN, partial rsync, unreachable) degrades to plain GitHub for just the
+  # blocks it didn't have, instead of failing the whole sync.
   $bad = @($blist | Where-Object { -not (Block-Valid (Join-Path $Cache $_) $_) })
-  if ($bad.Count -gt 0) { Say "re-fetching incomplete/corrupt blocks ..."; Fetch-Blocks $bad }
+  if ($bad.Count -gt 0) {
+    if ($firstBase -ne $DlBase) { Say "some blocks missing on the mirror - falling back to GitHub ..." }
+    else { Say "re-fetching incomplete/corrupt blocks ..." }
+    Fetch-Blocks $bad $DlBase
+  }
   foreach ($b in $blist) { if (-not (Block-Valid (Join-Path $Cache $b) $b)) { throw "block bad/missing: $b (re-run to resume)" } }
 
   # 5) assemble each file from its blocks (in order) and verify sha256
