@@ -129,6 +129,29 @@ branch; the engine fork is [itpick/UnrealEngine](https://github.com/itpick/Unrea
 
 📋 **What's changed since the UE4.15 port?** See the **[CHANGELOG](CHANGELOG.md)** — the bugs fixed and features added on the way to UE5.8.
 
+---
+
+## 🚀 Performance / FPS
+
+Low frame rate? See the **[Performance & FPS guide](docs/PERFORMANCE.md)** — how to see your
+FPS (`~` console → `stat unit`, or *Settings → System → Show Performance Stats*), how to get
+more FPS on weaker GPUs, and GPU-driver guidance.
+
+> A set of performance fixes is landing — notably **occlusion culling is being re-enabled on
+> Windows/macOS** (it had been globally disabled by a Linux-only workaround, so the client was
+> rendering everything behind walls). That's a large GPU win, especially on lower-end cards.
+
+**Typical FPS by OS** *(placeholders — [help us fill these in](docs/PERFORMANCE.md#report-your-numbers))*:
+
+| OS | Typical FPS | Notes |
+|----|-------------|-------|
+| **Windows** (Win64) | _TBD_ | D3D12 — keep GPU drivers current (this is UE5.8, not old UT4). |
+| **macOS** (Universal) | _TBD_ | Metal; scales with graphics settings. |
+| **Linux** | _TBD_ | Vulkan; use `-onethread` if startup hangs. |
+
+Hit a low frame rate? Use the in-game **"Report a Bug"** button — it sends your GPU/CPU/RAM +
+settings so we can tune for your hardware.
+
 ❤️ **Enjoying it? Help keep it alive.** This is a free, community-run project — the servers, build machines, and development all cost real money. If you'd like to chip in, **[support it on Patreon](https://patreon.com/itpick)**. No paywall, ever — donations just keep the lights on.
 
 ---
