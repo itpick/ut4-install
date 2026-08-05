@@ -420,6 +420,12 @@ open <address>:7777
 
 ## Running your own server or hub
 
+> **Want the whole backend — your own master server, hub, and dedicated servers on
+> Kubernetes/Flux?** See the full walkthrough:
+> **[docs/deploy-server-stack.md](docs/deploy-server-stack.md)** — master (API + Mongo +
+> web) + XMPP + game server + hub, playit tunnels, and the public-address override chain.
+> The section below is just the quick single-binary case against an existing master.
+
 Download the server package (same build serves both roles):
 
 ```bash
