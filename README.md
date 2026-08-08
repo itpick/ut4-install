@@ -241,6 +241,37 @@ Want to make **maps or mods**? You'll need the UT4 (UE5.8) **Editor** (not neede
 - **Today — build from source:** follow **[EDITOR.md](EDITOR.md)** (macOS / Linux / Windows). Needs ~200 GB disk and a long first build, but it's always current.
 - **Coming — pre-built packages** (~30–42 GB each, plug-and-play): published to `ghcr.io/itpick/ut4-install:editor-<plat>-5.8` and split to `editor-<plat>-5.8` Releases. The direct download links will appear in the table above once they're built.
 
+### Uncooked UT4 (4.15) content library — the source assets
+
+The original UT4 **uncooked** editor content is preserved as an OCI artifact. This is the
+"gone from Epic's CDN" source library — the raw, editable stock assets the game was built
+from — useful for mappers and for reconstructing community maps.
+
+| Artifact | Size | Contents |
+|---|---|---|
+| [`ghcr.io/itpick/ut4-editor-content-uncooked:4.15-20260808`](https://github.com/users/itpick/packages/container/package/ut4-editor-content-uncooked) | 34 GB (6 × 5 GB chunks) | 25,576 files · 24,654 `.uasset` · 221 `.umap` |
+
+```bash
+# private package — pulls with an itpick token
+oras pull ghcr.io/itpick/ut4-editor-content-uncooked:4.15-20260808
+cat chunks/ut4-content.tar.zst.part-* | zstd -d | tar -x   # -> UnrealTournament/Content + Engine/Content
+```
+
+A full folder + map listing is in the `MANIFEST.txt` layer inside the artifact.
+
+**What's included:**
+- **Stock Epic UT4 uncooked library** (~31 GB) — `RestrictedAssets`: every stock Blueprint
+  (the gadget library — lifts, jump pads, movers, etc.), material, mesh, texture and sound,
+  plus `StarterContent`, `Movies`, and the stock/test `.umap` maps.
+- **Reconstructed community maps** (`RecoveredMaps` + `58`, ~86 uncooked `FR-*` umaps) — these
+  are **our UE5.8 reconstructions (work-in-progress)**, not Epic originals.
+
+**What's NOT included (and does not exist anywhere):** the original **uncooked sources for
+community maps**. UT4 community maps were only ever distributed as **cooked** `.pak` files, and
+cooking is one-way — no editor of any engine version can un-cook them (verified). The full set
+of **124 community Blitz maps survives only as the original cooked paks** (11 GB, preserved
+separately); the reconstructions above are rebuilt from those cooked paks, not recovered from lost source.
+
 ---
 
 ## Important: you cannot mix versions
